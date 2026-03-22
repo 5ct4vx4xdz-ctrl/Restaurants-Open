@@ -209,7 +209,7 @@
     }
 
     .image {
-      height: 180px;
+      height: 150px;
       background:
         radial-gradient(circle at top left, rgba(249,115,22,.18), transparent 30%),
         radial-gradient(circle at bottom right, rgba(59,130,246,.18), transparent 30%),
@@ -227,7 +227,10 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+      object-position: center;
       display: block;
+      transform: translateZ(0);
+      backface-visibility: hidden;
     }
 
     .body {
@@ -355,7 +358,7 @@
       }
 
       .image {
-        height: 155px;
+        height: 140px;
       }
     }
   </style>
@@ -516,10 +519,28 @@
 
   function imageHtml(r) {
     if (r.thumbnail && r.thumbnail.includes('http')) {
-      return `<img src="${r.thumbnail}" alt="${escapeHtml(r.name || 'Place')}" loading="lazy"
-        onerror="this.parentNode.innerHTML='No Image Available'">`;
+      return `<img
+        src="${r.thumbnail}"
+        alt="${escapeHtml(r.name || 'Place')}"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+        decoding="async"
+        onerror="this.parentNode.innerHTML='No Image Available'"
+      >`;
     }
     return 'No Image Available';
+  }
+
+  function directionsLink(r) {
+    if (r.gps && r.gps.latitude && r.gps.longitude) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(r.gps.latitude + ',' + r.gps.longitude)}`;
+    }
+
+    if (r.address) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(r.address)}`;
+    }
+
+    return '';
   }
 
   function openClass(r) {
@@ -670,6 +691,8 @@
         ? `<div class="stat">${escapeHtml(r.distanceText)}</div>`
         : '';
 
+      const directionsUrl = directionsLink(r);
+
       card.innerHTML = `
         <div class="image">${imageHtml(r)}</div>
         <div class="body">
@@ -690,6 +713,7 @@
 
           <div class="link-row">
             ${r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer">View Website / Details</a>` : ''}
+            ${directionsUrl ? `<a href="${directionsUrl}" target="_blank" rel="noopener noreferrer">Get Directions</a>` : ''}
           </div>
         </div>
       `;
