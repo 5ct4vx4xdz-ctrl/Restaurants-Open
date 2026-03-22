@@ -3,113 +3,112 @@
 <head>
   <title>Find Open Restaurants</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
   <style>
-    * { box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; margin: 0; background: #f7f7f7; color: #222; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f5f5f5;
+    }
+
     header {
-      padding: 18px;
-      background: #222;
-      color: #fff;
-      text-align: center;
-      font-size: 28px;
-      font-weight: 700;
-    }
-    #controls {
-      padding: 14px;
-      text-align: center;
-      background: #fff;
-      border-bottom: 1px solid #e5e5e5;
-    }
-    #zip {
-      width: 220px;
-      max-width: 80vw;
-      padding: 10px 12px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      font-size: 16px;
-    }
-    button {
-      padding: 10px 14px;
-      border: none;
-      border-radius: 8px;
+      padding: 16px;
       background: #222;
       color: white;
-      font-size: 16px;
-      cursor: pointer;
-      margin-left: 8px;
+      text-align: center;
+      font-size: 26px;
+      font-weight: bold;
     }
-    #map { height: 320px; width: 100%; }
+
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 12px;
+      justify-content: center;
+      background: white;
+      border-bottom: 1px solid #ddd;
+    }
+
+    select, input, button {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+
+    button {
+      background: #222;
+      color: white;
+      cursor: pointer;
+    }
+
+    #map {
+      height: 300px;
+    }
+
     #results {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 16px;
+      padding: 15px;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 16px;
+      gap: 15px;
     }
+
     .card {
-      background: #fff;
-      border: 1px solid #e5e5e5;
-      border-radius: 14px;
+      background: white;
+      border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    .image-wrap {
-      width: 100%;
-      height: 190px;
-      background: #ececec;
-      overflow: hidden;
+
+    .image {
+      height: 160px;
+      background: #ddd;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .card img {
+
+    .image img {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      display: block;
     }
-    .card-body {
-      padding: 14px;
+
+    .body {
+      padding: 12px;
     }
-    .card h3 {
-      margin: 0 0 8px 0;
-      font-size: 20px;
-      line-height: 1.2;
+
+    .title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 6px;
     }
+
     .meta {
-      margin: 6px 0;
+      font-size: 14px;
       color: #555;
-      font-size: 14px;
+      margin-bottom: 6px;
     }
-    .status-open {
-      color: #0a7a2f;
-      font-weight: 700;
-    }
-    .status-closed {
-      color: #b42318;
-      font-weight: 700;
-    }
-    .links a {
-      display: inline-block;
-      margin-top: 10px;
-      color: #0b57d0;
+
+    .open { color: green; font-weight: bold; }
+    .closed { color: red; font-weight: bold; }
+
+    a {
+      color: blue;
       text-decoration: none;
-      font-weight: 600;
-    }
-    .empty-photo {
-      color: #777;
-      font-size: 14px;
     }
   </style>
 </head>
+
 <body>
 
 <header>Find Open Restaurants</header>
 
 <div id="controls">
-  <select id="mode">
+  <select id="mode" onchange="updatePlaceholder()">
     <option value="zip">ZIP Code</option>
     <option value="city">City, State</option>
     <option value="gps">Current Location</option>
@@ -120,28 +119,67 @@
   <button onclick="search()">Search</button>
 </div>
 
+<div id="map"></div>
+<div id="results"></div>
+
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
 let map = L.map('map').setView([37.8, -96], 4);
 let markers = [];
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19
-}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+function updatePlaceholder() {
+  const mode = document.getElementById('mode').value;
+  const input = document.getElementById('input');
+
+  if (mode === 'zip') {
+    input.placeholder = "Enter ZIP code";
+    input.disabled = false;
+  }
+
+  if (mode === 'city') {
+    input.placeholder = "City, State (ex: Atlanta, GA)";
+    input.disabled = false;
+  }
+
+  if (mode === 'gps') {
+    input.placeholder = "Using your location...";
+    input.disabled = true;
+  }
+}
 
 function clearMarkers() {
-  markers.forEach(marker => map.removeLayer(marker));
+  markers.forEach(m => map.removeLayer(m));
   markers = [];
 }
 
 async function search() {
-  const zip = document.getElementById('zip').value.trim();
-  if (!zip) return;
+  const mode = document.getElementById('mode').value;
+  const input = document.getElementById('input').value;
 
-  const res = await fetch(`/api/restaurants?zip=${zip}`);
-  const data = await res.json();
+  if (mode === 'gps') {
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
 
+      const res = await fetch(`/api/restaurants?lat=${lat}&lng=${lng}`);
+      render(await res.json());
+    });
+    return;
+  }
+
+  let url = '';
+
+  if (mode === 'zip') url = `/api/restaurants?zip=${input}`;
+  if (mode === 'city') url = `/api/restaurants?location=${input}`;
+
+  const res = await fetch(url);
+  render(await res.json());
+}
+
+function render(data) {
   const results = document.getElementById('results');
   results.innerHTML = '';
   clearMarkers();
@@ -149,40 +187,41 @@ async function search() {
   let bounds = [];
 
   data.forEach(r => {
-    if (r.gps && r.gps.latitude && r.gps.longitude) {
+
+    if (r.gps) {
       const marker = L.marker([r.gps.latitude, r.gps.longitude])
         .addTo(map)
-        .bindPopup(`<strong>${r.name}</strong><br>${r.address || ''}`);
+        .bindPopup(r.name);
       markers.push(marker);
       bounds.push([r.gps.latitude, r.gps.longitude]);
     }
 
-    const div = document.createElement('div');
-    div.className = 'card';
+    const card = document.createElement('div');
+    card.className = 'card';
 
-    const imageHtml = r.thumbnail
-      ? `<div class="image-wrap"><img src="${r.thumbnail}" alt="${r.name}" loading="lazy" referrerpolicy="no-referrer"></div>`
-      : `<div class="image-wrap"><div class="empty-photo">No photo available</div></div>`;
+    const imgHTML = (r.thumbnail && r.thumbnail.includes('http'))
+      ? `<img src="${r.thumbnail}" onerror="this.parentNode.innerHTML='No Image'"/>`
+      : `<div>No Image</div>`;
 
-    div.innerHTML = `
-      ${imageHtml}
-      <div class="card-body">
-        <h3>${r.name || 'Restaurant'}</h3>
-        <div class="meta">${r.type || 'Cuisine not listed'}</div>
-        <div class="meta">⭐ ${r.rating || 'N/A'} (${r.reviews || 0} reviews)</div>
-        <div class="meta ${r.open ? 'status-open' : 'status-closed'}">${r.open ? 'Open Now' : 'Closed'}</div>
-        <div class="meta">${r.address || ''}</div>
-        <div class="links">
-          <a href="${r.link}" target="_blank" rel="noopener noreferrer">View Menu / Website</a>
+    card.innerHTML = `
+      <div class="image">${imgHTML}</div>
+      <div class="body">
+        <div class="title">${r.name}</div>
+        <div class="meta">${r.type || ''}</div>
+        <div class="meta">⭐ ${r.rating || 'N/A'} (${r.reviews || 0})</div>
+        <div class="${r.open ? 'open' : 'closed'}">
+          ${r.open ? 'Open Now' : 'Closed'}
         </div>
+        <div class="meta">${r.address}</div>
+        <a href="${r.link}" target="_blank">View Menu / Website</a>
       </div>
     `;
 
-    results.appendChild(div);
+    results.appendChild(card);
   });
 
-  if (bounds.length > 0) {
-    map.fitBounds(bounds, { padding: [30, 30] });
+  if (bounds.length) {
+    map.fitBounds(bounds);
   }
 }
 </script>
