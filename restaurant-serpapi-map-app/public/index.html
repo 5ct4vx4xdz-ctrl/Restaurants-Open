@@ -1,0 +1,33 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Restaurant Finder</title>
+</head>
+<body>
+  <h2>Restaurant Finder</h2>
+  <input id="zip" placeholder="Enter ZIP code"/>
+  <button onclick="search()">Search</button>
+  <ul id="results"></ul>
+
+<script>
+async function search() {
+  const zip = document.getElementById('zip').value;
+  const res = await fetch(`/api/restaurants?zip=${zip}`);
+  const data = await res.json();
+
+  const list = document.getElementById('results');
+  list.innerHTML = '';
+
+  data.forEach(r => {
+    const li = document.createElement('li');
+    li.innerHTML = `<b>${r.name}</b> (${r.type}) - ⭐ ${r.rating || 'N/A'}<br>
+    ${r.address}<br>
+    ${r.open ? 'Open Now' : 'Closed'}<br>
+    <a href="${r.link}" target="_blank">View</a>`;
+    list.appendChild(li);
+  });
+}
+</script>
+</body>
+</html>
