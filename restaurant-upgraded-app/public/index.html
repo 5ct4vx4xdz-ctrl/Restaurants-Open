@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Find Restaurants</title>
+  <title>Find Open Restaurants</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
@@ -20,7 +20,6 @@
       --green: #15803d;
       --red: #b91c1c;
       --shadow: 0 10px 30px rgba(0,0,0,0.08);
-      --radius: 18px;
     }
 
     body {
@@ -71,7 +70,7 @@
 
     .controls-grid {
       display: grid;
-      grid-template-columns: 1fr 1.2fr 1fr 1fr 1fr auto auto;
+      grid-template-columns: 1fr 1.2fr 1fr 1fr 1fr 1fr auto auto;
       gap: 12px;
       align-items: end;
     }
@@ -365,7 +364,7 @@
 <body>
 
 <header>
-  <h1>Find Restaurants</h1>
+  <h1>Find Open Restaurants</h1>
   <p>Search by ZIP, City/State, or Current Location with premium filters and a live map.</p>
 </header>
 
@@ -395,6 +394,19 @@
       </div>
 
       <div class="field">
+        <label for="distanceFilter">Distance</label>
+        <select id="distanceFilter" onchange="applyFilters()">
+          <option value="all">Any Distance</option>
+          <option value="1">Within 1 mile</option>
+          <option value="3">Within 3 miles</option>
+          <option value="5">Within 5 miles</option>
+          <option value="10">Within 10 miles</option>
+          <option value="15">Within 15 miles</option>
+          <option value="25">Within 25 miles</option>
+        </select>
+      </div>
+
+      <div class="field">
         <label for="cuisineFilter">Cuisine</label>
         <select id="cuisineFilter" onchange="applyFilters()">
           <option value="all">All Cuisines</option>
@@ -407,6 +419,7 @@
           <option value="best">Best Overall</option>
           <option value="rating">Highest Rating</option>
           <option value="reviews">Most Reviews</option>
+          <option value="distance">Closest</option>
           <option value="name">Name A–Z</option>
         </select>
       </div>
@@ -543,18 +556,27 @@
     const rating = Number(r.rating || 0);
     const reviews = Number(r.reviews || 0);
     const openBoost = r.open === true ? 0.25 : 0;
-    return rating + Math.min(reviews, 500) / 500 + openBoost;
+    const distanceBoost = r.distanceMiles != null ? Math.max(0, 2 - Math.min(r.distanceMiles, 10) / 5) : 0;
+    return rating + Math.min(reviews, 500) / 500 + openBoost + distanceBoost;
   }
 
   function applyFilters() {
     const openFilter = document.getElementById('openFilter').value;
     const cuisineFilter = document.getElementById('cuisineFilter').value;
     const sortBy = document.getElementById('sortBy').value;
+    const distanceFilter = document.getElementById('distanceFilter').value;
 
     filteredRestaurants = allRestaurants.filter(r => {
       const matchesOpen = openFilter === 'all' || r.open === true;
       const matchesCuisine = cuisineFilter === 'all' || normalizeCuisine(r.type) === cuisineFilter;
-      return matchesOpen && matchesCuisine;
+
+      let matchesDistance = true;
+      if (distanceFilter !== 'all') {
+        const maxMiles = Number(distanceFilter);
+        matchesDistance = r.distanceMiles != null && r.distanceMiles <= maxMiles;
+      }
+
+      return matchesOpen && matchesCuisine && matchesDistance;
     });
 
     filteredRestaurants.sort((a, b) => {
@@ -563,6 +585,9 @@
       }
       if (sortBy === 'reviews') {
         return (Number(b.reviews || 0) - Number(a.reviews || 0)) || (Number(b.rating || 0) - Number(a.rating || 0));
+      }
+      if (sortBy === 'distance') {
+        return (a.distanceMiles ?? 999999) - (b.distanceMiles ?? 999999);
       }
       if (sortBy === 'name') {
         return (a.name || '').localeCompare(b.name || '');
@@ -633,6 +658,10 @@
         }
       };
 
+      const distanceLine = r.distanceText
+        ? `<div class="stat">${escapeHtml(r.distanceText)}</div>`
+        : '';
+
       card.innerHTML = `
         <div class="image">${imageHtml(r)}</div>
         <div class="body">
@@ -646,6 +675,7 @@
           <div class="stats">
             <div class="stat">⭐ ${r.rating || 'N/A'}</div>
             <div class="stat">${r.reviews || 0} reviews</div>
+            ${distanceLine}
           </div>
 
           <div class="meta">${escapeHtml(r.address || '')}</div>
@@ -662,6 +692,7 @@
 
   function resetFilters() {
     document.getElementById('openFilter').value = 'all';
+    document.getElementById('distanceFilter').value = 'all';
     document.getElementById('cuisineFilter').value = 'all';
     document.getElementById('sortBy').value = 'best';
     applyFilters();
