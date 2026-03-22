@@ -16,25 +16,24 @@ app.get('/api/places', async (req, res) => {
     if (category === 'wineries') placeType = 'wineries';
     if (category === 'breweries') placeType = 'breweries';
 
-    let query = '';
+    let params = {
+      engine: 'google_maps',
+      type: 'search',
+      api_key: process.env.SERPAPI_KEY
+    };
 
-    if (zip) {
-      query = `${placeType} near ${zip}`;
+    if (lat && lng) {
+      params.q = placeType;
+      params.ll = `@${lat},${lng},14z`;
+    } else if (zip) {
+      params.q = `${placeType} near ${zip}`;
     } else if (location) {
-      query = `${placeType} near ${location}`;
-    } else if (lat && lng) {
-      query = `${placeType} near ${lat},${lng}`;
+      params.q = `${placeType} near ${location}`;
     } else {
       return res.status(400).json({ error: 'Missing location input' });
     }
 
-    const response = await axios.get('https://serpapi.com/search.json', {
-      params: {
-        engine: 'google_maps',
-        q: query,
-        api_key: process.env.SERPAPI_KEY
-      }
-    });
+    const response = await axios.get('https://serpapi.com/search.json', { params });
 
     const results = response.data.local_results || [];
 
@@ -65,21 +64,21 @@ function parseDistanceToMiles(distance) {
 
   const text = distance.toLowerCase().trim();
 
-  const mileMatch = text.match(/([\d.]+)\s*mi/);
+  const mileMatch = text.match(/([\\d.]+)\\s*mi/);
   if (mileMatch) return parseFloat(mileMatch[1]);
 
-  const footMatch = text.match(/([\d,]+)\s*ft/);
+  const footMatch = text.match(/([\\d,]+)\\s*ft/);
   if (footMatch) {
     const feet = parseFloat(footMatch[1].replace(/,/g, ''));
     return feet / 5280;
   }
 
-  const kmMatch = text.match(/([\d.]+)\s*km/);
+  const kmMatch = text.match(/([\\d.]+)\\s*km/);
   if (kmMatch) {
     return parseFloat(kmMatch[1]) * 0.621371;
   }
 
-  const meterMatch = text.match(/([\d,]+)\s*m\b/);
+  const meterMatch = text.match(/([\\d,]+)\\s*m\\b/);
   if (meterMatch) {
     const meters = parseFloat(meterMatch[1].replace(/,/g, ''));
     return meters * 0.000621371;
