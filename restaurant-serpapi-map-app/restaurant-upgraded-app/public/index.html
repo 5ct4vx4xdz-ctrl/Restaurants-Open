@@ -1,69 +1,45 @@
+const express = require('express');
+const axios = require('axios');
+const path = require('path');
+require('dotenv').config();
 
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Find Open Restaurants</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <style>
-    body { font-family: Arial; margin:0; }
-    header { padding:15px; background:#333; color:#fff; text-align:center; font-size:20px;}
-    #controls { padding:10px; text-align:center; }
-    #map { height:300px; }
-    #results { padding:10px; }
-    .card { border:1px solid #ddd; margin:10px 0; padding:10px; border-radius:8px; }
-    img { width:100%; max-height:150px; object-fit:cover; border-radius:6px; }
-  </style>
-</head>
-<body>
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-<header>Find Open Restaurants</header>
+app.use(express.static(path.join(__dirname, '../public')));
 
-<div id="controls">
-  <input id="zip" placeholder="Enter ZIP code"/>
-  <button onclick="search()">Search</button>
-</div>
+app.get('/api/restaurants', async (req, res) => {
+  const { zip } = req.query;
 
-<div id="map"></div>
-<div id="results"></div>
+  try {
+    const response = await axios.get('https://serpapi.com/search.json', {
+      params: {
+        engine: 'google_maps',
+        q: `restaurants near ${zip}`,
+        api_key: process.env.SERPAPI_KEY
+      }
+    });
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    const results = response.data.local_results || [];
 
-<script>
-let map = L.map('map').setView([37.8, -96], 4);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const formatted = results.map(r => ({
+      name: r.title,
+      rating: r.rating,
+      reviews: r.reviews,
+      address: r.address,
+      open: r.opening_hours?.open_now,
+      type: r.type,
+      link: r.website || r.link,
+      thumbnail: r.thumbnail,
+      gps: r.gps_coordinates
+    }));
 
-async function search() {
-  const zip = document.getElementById('zip').value;
-  const res = await fetch(`/api/restaurants?zip=${zip}`);
-  const data = await res.json();
+    res.json(formatted);
+  } catch (err) {
+    res.status(500).json({ error: 'Error fetching data' });
+  }
+});
 
-  document.getElementById('results').innerHTML = '';
-
-  data.forEach(r => {
-    if(r.gps){
-      L.marker([r.gps.latitude, r.gps.longitude])
-        .addTo(map)
-        .bindPopup(r.name);
-    }
-
-    const div = document.createElement('div');
-    div.className = 'card';
-
-    div.innerHTML = `
-      ${r.thumbnail ? `<img src="${r.thumbnail}"/>` : ''}
-      <h3>${r.name}</h3>
-      <p>${r.type || ''}</p>
-      <p>⭐ ${r.rating || 'N/A'} (${r.reviews || 0})</p>
-      <p>${r.open ? 'Open Now' : 'Closed'}</p>
-      <p>${r.address}</p>
-      <a href="${r.link}" target="_blank">View Menu / Website</a>
-    `;
-
-    document.getElementById('results').appendChild(div);
-  });
-}
-</script>
-
-</body>
-</html>
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
