@@ -209,7 +209,7 @@
     }
 
     .image {
-      height: 150px;
+      height: 128px;
       background:
         radial-gradient(circle at top left, rgba(249,115,22,.18), transparent 30%),
         radial-gradient(circle at bottom right, rgba(59,130,246,.18), transparent 30%),
@@ -231,6 +231,7 @@
       display: block;
       transform: translateZ(0);
       backface-visibility: hidden;
+      image-rendering: auto;
     }
 
     .body {
@@ -358,7 +359,7 @@
       }
 
       .image {
-        height: 140px;
+        height: 120px;
       }
     }
   </style>
@@ -471,6 +472,7 @@
   let allPlaces = [];
   let filteredPlaces = [];
   let selectedPlaceName = null;
+  let lastSearch = {};
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19
@@ -535,11 +537,9 @@
     if (r.gps && r.gps.latitude && r.gps.longitude) {
       return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(r.gps.latitude + ',' + r.gps.longitude)}`;
     }
-
     if (r.address) {
       return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(r.address)}`;
     }
-
     return '';
   }
 
@@ -616,7 +616,7 @@
         return (Number(b.reviews || 0) - Number(a.reviews || 0)) || (Number(b.rating || 0) - Number(a.rating || 0));
       }
       if (sortBy === 'distance') {
-        return (a.distanceMiles ?? 999999) - (b.distanceMiles ?? 999999);
+        return (a.distanceMiles ?? Number.MAX_SAFE_INTEGER) - (b.distanceMiles ?? Number.MAX_SAFE_INTEGER);
       }
       if (sortBy === 'name') {
         return (a.name || '').localeCompare(b.name || '');
@@ -762,34 +762,12 @@
             try {
               const lat = pos.coords.latitude;
               const lng = pos.coords.longitude;
+              lastSearch = { category, lat, lng };
 
-              const geoRes = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`
-              );
-              const geoData = await geoRes.json();
-
-              const address = geoData.address || {};
-              const city = address.city || address.town || address.village || address.hamlet || '';
-              const state = address.state || '';
-              const postcode = address.postcode || '';
-
-              let locationText = '';
-
-              if (postcode) {
-                locationText = postcode;
-              } else if (city && state) {
-                locationText = `${city}, ${state}`;
-              } else if (geoData.display_name) {
-                locationText = geoData.display_name;
-              } else {
-                setStatus('Could not determine your location well enough to search.');
-                return;
-              }
-
-              const res = await fetch(`/api/places?location=${encodeURIComponent(locationText)}&category=${encodeURIComponent(category)}`);
+              const res = await fetch(`/api/places?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&category=${encodeURIComponent(category)}`);
               const data = await res.json();
               render(data);
-              setStatus(`Showing ${category} near ${locationText}.`);
+              setStatus(`Showing ${category} near your current location.`);
             } catch (err) {
               console.error(err);
               setStatus('Could not use your current location.');
@@ -819,8 +797,10 @@
       let url = '';
 
       if (mode === 'zip') {
+        lastSearch = { category, zip: input };
         url = `/api/places?zip=${encodeURIComponent(input)}&category=${encodeURIComponent(category)}`;
       } else if (mode === 'city') {
+        lastSearch = { category, location: input };
         url = `/api/places?location=${encodeURIComponent(input)}&category=${encodeURIComponent(category)}`;
       }
 
