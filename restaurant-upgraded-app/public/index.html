@@ -3,14 +3,15 @@
 <head>
   <title>Find Open Restaurants</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-
   <style>
+    * { box-sizing: border-box; }
+
     body {
       font-family: Arial, sans-serif;
       margin: 0;
       background: #f5f5f5;
+      color: #222;
     }
 
     header {
@@ -18,7 +19,7 @@
       background: #222;
       color: white;
       text-align: center;
-      font-size: 26px;
+      font-size: 28px;
       font-weight: bold;
     }
 
@@ -26,83 +27,156 @@
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      padding: 12px;
+      padding: 14px;
       justify-content: center;
+      align-items: center;
       background: white;
       border-bottom: 1px solid #ddd;
     }
 
     select, input, button {
-      padding: 10px;
+      padding: 10px 12px;
       border-radius: 8px;
       border: 1px solid #ccc;
       font-size: 16px;
+    }
+
+    input {
+      min-width: 260px;
+      max-width: 420px;
+      width: 100%;
     }
 
     button {
       background: #222;
       color: white;
       cursor: pointer;
+      border: none;
+    }
+
+    button:hover {
+      opacity: 0.95;
+    }
+
+    #status {
+      padding: 10px 14px;
+      background: #fafafa;
+      border-bottom: 1px solid #e5e5e5;
+      font-size: 14px;
+      color: #555;
+      text-align: center;
     }
 
     #map {
-      height: 300px;
+      height: 320px;
+      width: 100%;
     }
 
     #results {
-      padding: 15px;
+      padding: 16px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 15px;
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      gap: 16px;
+      max-width: 1200px;
+      margin: 0 auto;
     }
 
     .card {
       background: white;
-      border-radius: 12px;
+      border-radius: 14px;
       overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      border: 1px solid #e8e8e8;
     }
 
     .image {
-      height: 160px;
-      background: #ddd;
+      height: 180px;
+      background: #e8e8e8;
       display: flex;
       align-items: center;
       justify-content: center;
+      color: #666;
+      font-size: 14px;
+      text-align: center;
+      overflow: hidden;
     }
 
     .image img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      display: block;
     }
 
     .body {
-      padding: 12px;
+      padding: 14px;
     }
 
     .title {
-      font-size: 18px;
+      font-size: 20px;
       font-weight: bold;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
+      line-height: 1.2;
     }
 
     .meta {
       font-size: 14px;
       color: #555;
-      margin-bottom: 6px;
+      margin-bottom: 7px;
+      line-height: 1.4;
     }
 
-    .open { color: green; font-weight: bold; }
-    .closed { color: red; font-weight: bold; }
+    .open {
+      color: #0a7a2f;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
 
-    a {
-      color: blue;
+    .closed {
+      color: #b42318;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .unknown {
+      color: #666;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    .link-row {
+      margin-top: 10px;
+    }
+
+    .link-row a {
+      color: #0b57d0;
       text-decoration: none;
+      font-weight: 600;
+    }
+
+    .link-row a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 640px) {
+      header {
+        font-size: 24px;
+      }
+
+      #controls {
+        flex-direction: column;
+      }
+
+      input {
+        min-width: 0;
+      }
+
+      #map {
+        height: 280px;
+      }
     }
   </style>
 </head>
-
 <body>
 
 <header>Find Open Restaurants</header>
@@ -119,111 +193,226 @@
   <button onclick="search()">Search</button>
 </div>
 
+<div id="status">Search by ZIP code, City/State, or Current Location.</div>
+
 <div id="map"></div>
 <div id="results"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-let map = L.map('map').setView([37.8, -96], 4);
-let markers = [];
+  let map = L.map('map').setView([37.8, -96], 4);
+  let markers = [];
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(map);
 
-function updatePlaceholder() {
-  const mode = document.getElementById('mode').value;
-  const input = document.getElementById('input');
+  function updatePlaceholder() {
+    const mode = document.getElementById('mode').value;
+    const input = document.getElementById('input');
 
-  if (mode === 'zip') {
-    input.placeholder = "Enter ZIP code";
-    input.disabled = false;
+    if (mode === 'zip') {
+      input.placeholder = 'Enter ZIP code';
+      input.disabled = false;
+      input.value = '';
+    } else if (mode === 'city') {
+      input.placeholder = 'City, State (ex: Atlanta, GA)';
+      input.disabled = false;
+      input.value = '';
+    } else {
+      input.placeholder = 'Using your current location...';
+      input.disabled = true;
+      input.value = '';
+    }
   }
 
-  if (mode === 'city') {
-    input.placeholder = "City, State (ex: Atlanta, GA)";
-    input.disabled = false;
+  function clearMarkers() {
+    markers.forEach(marker => map.removeLayer(marker));
+    markers = [];
   }
 
-  if (mode === 'gps') {
-    input.placeholder = "Using your location...";
-    input.disabled = true;
-  }
-}
-
-function clearMarkers() {
-  markers.forEach(m => map.removeLayer(m));
-  markers = [];
-}
-
-async function search() {
-  const mode = document.getElementById('mode').value;
-  const input = document.getElementById('input').value;
-
-  if (mode === 'gps') {
-    navigator.geolocation.getCurrentPosition(async pos => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-
-      const res = await fetch(`/api/restaurants?lat=${lat}&lng=${lng}`);
-      render(await res.json());
-    });
-    return;
+  function setStatus(message) {
+    document.getElementById('status').textContent = message;
   }
 
-  let url = '';
+  function imageHtml(r) {
+    if (r.thumbnail && r.thumbnail.includes('http')) {
+      return `<img src="${r.thumbnail}" alt="${escapeHtml(r.name || 'Restaurant')}" loading="lazy"
+        onerror="this.parentNode.innerHTML='No Image Available'">`;
+    }
+    return 'No Image Available';
+  }
 
-  if (mode === 'zip') url = `/api/restaurants?zip=${input}`;
-  if (mode === 'city') url = `/api/restaurants?location=${input}`;
+  function openClass(r) {
+    if (r.open === true) return 'open';
+    if (r.open === false) return 'closed';
+    return 'unknown';
+  }
 
-  const res = await fetch(url);
-  render(await res.json());
-}
+  function openText(r) {
+    if (r.open === true) return 'Open Now';
+    if (r.open === false) return 'Closed';
+    return 'Hours Unknown';
+  }
 
-function render(data) {
-  const results = document.getElementById('results');
-  results.innerHTML = '';
-  clearMarkers();
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 
-  let bounds = [];
+  function render(data) {
+    const results = document.getElementById('results');
+    results.innerHTML = '';
+    clearMarkers();
 
-  data.forEach(r => {
-
-    if (r.gps) {
-      const marker = L.marker([r.gps.latitude, r.gps.longitude])
-        .addTo(map)
-        .bindPopup(r.name);
-      markers.push(marker);
-      bounds.push([r.gps.latitude, r.gps.longitude]);
+    if (!Array.isArray(data)) {
+      setStatus('Something went wrong loading restaurants.');
+      return;
     }
 
-    const card = document.createElement('div');
-    card.className = 'card';
+    if (data.length === 0) {
+      setStatus('No restaurants found for that search.');
+      return;
+    }
 
-    const imgHTML = (r.thumbnail && r.thumbnail.includes('http'))
-      ? `<img src="${r.thumbnail}" onerror="this.parentNode.innerHTML='No Image'"/>`
-      : `<div>No Image</div>`;
+    setStatus(`Found ${data.length} restaurants.`);
 
-    card.innerHTML = `
-      <div class="image">${imgHTML}</div>
-      <div class="body">
-        <div class="title">${r.name}</div>
-        <div class="meta">${r.type || ''}</div>
-        <div class="meta">⭐ ${r.rating || 'N/A'} (${r.reviews || 0})</div>
-        <div class="${r.open ? 'open' : 'closed'}">
-          ${r.open ? 'Open Now' : 'Closed'}
+    const bounds = [];
+
+    data.forEach(r => {
+      if (r.gps && r.gps.latitude && r.gps.longitude) {
+        const marker = L.marker([r.gps.latitude, r.gps.longitude])
+          .addTo(map)
+          .bindPopup(`<strong>${escapeHtml(r.name)}</strong><br>${escapeHtml(r.address || '')}`);
+        markers.push(marker);
+        bounds.push([r.gps.latitude, r.gps.longitude]);
+      }
+
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      card.innerHTML = `
+        <div class="image">${imageHtml(r)}</div>
+        <div class="body">
+          <div class="title">${escapeHtml(r.name || 'Restaurant')}</div>
+          <div class="meta">${escapeHtml(r.type || '')}</div>
+          <div class="meta">⭐ ${r.rating || 'N/A'} (${r.reviews || 0} reviews)</div>
+          <div class="${openClass(r)}">${openText(r)}</div>
+          <div class="meta">${escapeHtml(r.address || '')}</div>
+          <div class="link-row">
+            ${r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer">View Menu / Website</a>` : ''}
+          </div>
         </div>
-        <div class="meta">${r.address}</div>
-        <a href="${r.link}" target="_blank">View Menu / Website</a>
-      </div>
-    `;
+      `;
 
-    results.appendChild(card);
+      results.appendChild(card);
+    });
+
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [30, 30] });
+    }
+  }
+
+  async function search() {
+    const mode = document.getElementById('mode').value;
+    const input = document.getElementById('input').value.trim();
+
+    try {
+      setStatus('Searching...');
+
+      if (mode === 'gps') {
+        if (!navigator.geolocation) {
+          setStatus('Your browser does not support location services.');
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          async pos => {
+            try {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+
+              const geoRes = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`
+              );
+              const geoData = await geoRes.json();
+
+              const address = geoData.address || {};
+              const city = address.city || address.town || address.village || address.hamlet || '';
+              const state = address.state || '';
+              const postcode = address.postcode || '';
+
+              let locationText = '';
+
+              if (postcode) {
+                locationText = postcode;
+              } else if (city && state) {
+                locationText = `${city}, ${state}`;
+              } else if (geoData.display_name) {
+                locationText = geoData.display_name;
+              } else {
+                setStatus('Could not determine your location well enough to search.');
+                return;
+              }
+
+              const res = await fetch(`/api/restaurants?location=${encodeURIComponent(locationText)}`);
+              const data = await res.json();
+              render(data);
+            } catch (err) {
+              console.error(err);
+              setStatus('Could not use your current location.');
+            }
+          },
+          err => {
+            if (err.code === 1) {
+              setStatus('Location permission was denied. Please allow location access in your browser.');
+            } else if (err.code === 2) {
+              setStatus('Your location could not be determined.');
+            } else if (err.code === 3) {
+              setStatus('Location request timed out. Please try again.');
+            } else {
+              setStatus('Could not access your location.');
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000
+          }
+        );
+
+        return;
+      }
+
+      let url = '';
+
+      if (mode === 'zip') {
+        url = `/api/restaurants?zip=${encodeURIComponent(input)}`;
+      } else if (mode === 'city') {
+        url = `/api/restaurants?location=${encodeURIComponent(input)}`;
+      }
+
+      const res = await fetch(url);
+      const data = await res.json();
+      render(data);
+    } catch (err) {
+      console.error(err);
+      setStatus('Search failed. Please try again.');
+    }
+  }
+
+  document.getElementById('input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      search();
+    }
   });
 
-  if (bounds.length) {
-    map.fitBounds(bounds);
-  }
-}
+  updatePlaceholder();
 </script>
 
 </body>
