@@ -1,101 +1,225 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Find Restaurants</title>
+  <title>Find Open Restaurants</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     * { box-sizing: border-box; }
 
+    :root {
+      --bg1: #fff7ed;
+      --bg2: #eff6ff;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --brand1: #f97316;
+      --brand2: #ec4899;
+      --brand3: #3b82f6;
+      --green: #15803d;
+      --red: #b91c1c;
+      --shadow: 0 10px 30px rgba(0,0,0,0.08);
+      --radius: 18px;
+    }
+
     body {
       font-family: Arial, sans-serif;
       margin: 0;
-      background: #f5f5f5;
-      color: #222;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(249,115,22,.15), transparent 26%),
+        radial-gradient(circle at top right, rgba(59,130,246,.14), transparent 24%),
+        linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 100%);
+      min-height: 100vh;
     }
 
     header {
-      padding: 16px;
-      background: #222;
-      color: white;
+      padding: 20px 16px 12px;
       text-align: center;
-      font-size: 28px;
-      font-weight: bold;
+      color: white;
+      background: linear-gradient(135deg, var(--brand1) 0%, var(--brand2) 50%, var(--brand3) 100%);
+      box-shadow: var(--shadow);
     }
 
-    #controls {
+    header h1 {
+      margin: 0;
+      font-size: 32px;
+      line-height: 1.1;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      font-size: 15px;
+      opacity: 0.95;
+    }
+
+    .toolbar-wrap {
+      max-width: 1280px;
+      margin: 18px auto 0;
+      padding: 0 16px;
+    }
+
+    .toolbar {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.7);
+      box-shadow: var(--shadow);
+      border-radius: 22px;
+      padding: 16px;
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr 1fr 1fr auto auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .field {
       display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      padding: 14px;
-      justify-content: center;
-      align-items: center;
-      background: white;
-      border-bottom: 1px solid #ddd;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
     }
 
     select, input, button {
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 16px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      font-size: 15px;
+      background: white;
     }
 
-    input {
-      min-width: 260px;
-      max-width: 420px;
+    input, select {
       width: 100%;
     }
 
     button {
-      background: #222;
-      color: white;
-      cursor: pointer;
       border: none;
+      cursor: pointer;
+      font-weight: 700;
     }
 
-    button:hover {
-      opacity: 0.95;
+    .search-btn {
+      color: white;
+      background: linear-gradient(135deg, var(--brand1), var(--brand2));
+      box-shadow: 0 8px 18px rgba(236,72,153,0.22);
     }
 
-    #status {
-      padding: 10px 14px;
-      background: #fafafa;
-      border-bottom: 1px solid #e5e5e5;
-      font-size: 14px;
-      color: #555;
-      text-align: center;
+    .reset-btn {
+      color: var(--text);
+      background: #f3f4f6;
     }
 
-    #map {
-      height: 320px;
-      width: 100%;
+    #statusBar {
+      max-width: 1280px;
+      margin: 14px auto 0;
+      padding: 0 16px;
+    }
+
+    .status {
+      background: rgba(255,255,255,0.8);
+      border: 1px solid rgba(255,255,255,0.7);
+      border-radius: 16px;
+      padding: 12px 14px;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .layout {
+      max-width: 1280px;
+      margin: 16px auto 24px;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: 420px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      background: rgba(255,255,255,0.9);
+      border: 1px solid rgba(255,255,255,0.7);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,255,255,0.55));
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .count-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #fde68a, #fbcfe8);
+      font-size: 12px;
+      font-weight: 700;
     }
 
     #results {
-      padding: 16px;
+      padding: 14px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-      gap: 16px;
-      max-width: 1200px;
-      margin: 0 auto;
+      gap: 14px;
+      max-height: calc(100vh - 285px);
+      overflow: auto;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 28px 18px;
+      color: var(--muted);
+      line-height: 1.5;
     }
 
     .card {
       background: white;
-      border-radius: 14px;
+      border: 1px solid #f1f5f9;
+      border-radius: 18px;
       overflow: hidden;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-      border: 1px solid #e8e8e8;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+
+    .card:hover, .card.active {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.09);
+      border-color: #f9a8d4;
     }
 
     .image {
       height: 180px;
-      background: #e8e8e8;
+      background:
+        radial-gradient(circle at top left, rgba(249,115,22,.18), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(59,130,246,.18), transparent 30%),
+        #f3f4f6;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #666;
+      color: var(--muted);
       font-size: 14px;
       text-align: center;
       overflow: hidden;
@@ -112,97 +236,217 @@
       padding: 14px;
     }
 
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
     .title {
       font-size: 20px;
-      font-weight: bold;
-      margin-bottom: 8px;
+      font-weight: 700;
       line-height: 1.2;
+      margin: 0;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .open {
+      background: #dcfce7;
+      color: var(--green);
+    }
+
+    .closed {
+      background: #fee2e2;
+      color: var(--red);
+    }
+
+    .unknown {
+      background: #f3f4f6;
+      color: var(--muted);
     }
 
     .meta {
       font-size: 14px;
-      color: #555;
+      color: var(--muted);
       margin-bottom: 7px;
-      line-height: 1.4;
+      line-height: 1.45;
     }
 
-    .open {
-      color: #0a7a2f;
-      font-weight: bold;
+    .stats {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
       margin-bottom: 8px;
     }
 
-    .closed {
-      color: #b42318;
-      font-weight: bold;
-      margin-bottom: 8px;
-    }
-
-    .unknown {
-      color: #666;
-      font-weight: bold;
-      margin-bottom: 8px;
+    .stat {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 13px;
+      color: #334155;
     }
 
     .link-row {
       margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
     .link-row a {
-      color: #0b57d0;
       text-decoration: none;
-      font-weight: 600;
+      font-weight: 700;
+      font-size: 13px;
+      color: #1d4ed8;
+      background: #eff6ff;
+      padding: 9px 11px;
+      border-radius: 10px;
+      border: 1px solid #dbeafe;
     }
 
-    .link-row a:hover {
-      text-decoration: underline;
+    #map {
+      height: calc(100vh - 285px);
+      min-height: 560px;
+      width: 100%;
     }
 
-    @media (max-width: 640px) {
-      header {
-        font-size: 24px;
+    @media (max-width: 1150px) {
+      .layout {
+        grid-template-columns: 1fr;
       }
 
-      #controls {
-        flex-direction: column;
-      }
-
-      input {
-        min-width: 0;
+      #results {
+        max-height: none;
       }
 
       #map {
-        height: 280px;
+        height: 430px;
+        min-height: 430px;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .controls-grid {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      header h1 {
+        font-size: 28px;
+      }
+
+      .controls-grid {
+        grid-template-columns: 1fr;
+      }
+
+      #map {
+        height: 320px;
+        min-height: 320px;
+      }
+
+      .image {
+        height: 155px;
       }
     }
   </style>
 </head>
 <body>
 
-<header>Find Restaurants</header>
+<header>
+  <h1>Find Open Restaurants</h1>
+  <p>Search by ZIP, City/State, or Current Location with premium filters and a live map.</p>
+</header>
 
-<div id="controls">
-  <select id="mode" onchange="updatePlaceholder()">
-    <option value="zip">ZIP Code</option>
-    <option value="city">City, State</option>
-    <option value="gps">Current Location</option>
-  </select>
+<div class="toolbar-wrap">
+  <div class="toolbar">
+    <div class="controls-grid">
+      <div class="field">
+        <label for="mode">Search By</label>
+        <select id="mode" onchange="updatePlaceholder()">
+          <option value="zip">ZIP Code</option>
+          <option value="city">City, State</option>
+          <option value="gps">Current Location</option>
+        </select>
+      </div>
 
-  <input id="input" placeholder="Enter ZIP code" />
+      <div class="field">
+        <label for="input">Location</label>
+        <input id="input" placeholder="Enter ZIP code" />
+      </div>
 
-  <button onclick="search()">Search</button>
+      <div class="field">
+        <label for="openFilter">Open Status</label>
+        <select id="openFilter" onchange="applyFilters()">
+          <option value="all">All Restaurants</option>
+          <option value="open">Open Now Only</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="cuisineFilter">Cuisine</label>
+        <select id="cuisineFilter" onchange="applyFilters()">
+          <option value="all">All Cuisines</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="sortBy">Sort By</label>
+        <select id="sortBy" onchange="applyFilters()">
+          <option value="best">Best Overall</option>
+          <option value="rating">Highest Rating</option>
+          <option value="reviews">Most Reviews</option>
+          <option value="name">Name A–Z</option>
+        </select>
+      </div>
+
+      <button class="search-btn" onclick="search()">Search</button>
+      <button class="reset-btn" onclick="resetFilters()">Reset</button>
+    </div>
+  </div>
 </div>
 
-<div id="status">Search by ZIP code, City/State, or Current Location.</div>
+<div id="statusBar">
+  <div class="status">
+    <div id="status">Search by ZIP code, City/State, or Current Location.</div>
+    <div id="summary">0 restaurants</div>
+  </div>
+</div>
 
-<div id="map"></div>
-<div id="results"></div>
+<div class="layout">
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Restaurants</h2>
+      <div class="count-pill" id="countPill">0 results</div>
+    </div>
+    <div id="results">
+      <div class="empty-state">Run a search to see restaurants, filters, and map pins.</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div id="map"></div>
+  </div>
+</div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
 <script>
   let map = L.map('map').setView([37.8, -96], 4);
   let markers = [];
+  let allRestaurants = [];
+  let filteredRestaurants = [];
+  let selectedRestaurantName = null;
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19
@@ -236,6 +480,19 @@
     document.getElementById('status').textContent = message;
   }
 
+  function setSummary(message) {
+    document.getElementById('summary').textContent = message;
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function imageHtml(r) {
     if (r.thumbnail && r.thumbnail.includes('http')) {
       return `<img src="${r.thumbnail}" alt="${escapeHtml(r.name || 'Restaurant')}" loading="lazy"
@@ -256,54 +513,143 @@
     return 'Hours Unknown';
   }
 
-  function escapeHtml(str) {
-    return String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+  function normalizeCuisine(type) {
+    if (!type) return 'Other';
+    return type.trim();
   }
 
-  function render(data) {
+  function populateCuisineFilter(data) {
+    const select = document.getElementById('cuisineFilter');
+    const current = select.value;
+
+    const cuisines = [...new Set(
+      data.map(r => normalizeCuisine(r.type)).filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b));
+
+    select.innerHTML = '<option value="all">All Cuisines</option>';
+    cuisines.forEach(cuisine => {
+      const option = document.createElement('option');
+      option.value = cuisine;
+      option.textContent = cuisine;
+      select.appendChild(option);
+    });
+
+    if ([...select.options].some(o => o.value === current)) {
+      select.value = current;
+    }
+  }
+
+  function scoreRestaurant(r) {
+    const rating = Number(r.rating || 0);
+    const reviews = Number(r.reviews || 0);
+    const openBoost = r.open === true ? 0.25 : 0;
+    return rating + Math.min(reviews, 500) / 500 + openBoost;
+  }
+
+  function applyFilters() {
+    const openFilter = document.getElementById('openFilter').value;
+    const cuisineFilter = document.getElementById('cuisineFilter').value;
+    const sortBy = document.getElementById('sortBy').value;
+
+    filteredRestaurants = allRestaurants.filter(r => {
+      const matchesOpen = openFilter === 'all' || r.open === true;
+      const matchesCuisine = cuisineFilter === 'all' || normalizeCuisine(r.type) === cuisineFilter;
+      return matchesOpen && matchesCuisine;
+    });
+
+    filteredRestaurants.sort((a, b) => {
+      if (sortBy === 'rating') {
+        return (Number(b.rating || 0) - Number(a.rating || 0)) || (Number(b.reviews || 0) - Number(a.reviews || 0));
+      }
+      if (sortBy === 'reviews') {
+        return (Number(b.reviews || 0) - Number(a.reviews || 0)) || (Number(b.rating || 0) - Number(a.rating || 0));
+      }
+      if (sortBy === 'name') {
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      return scoreRestaurant(b) - scoreRestaurant(a);
+    });
+
+    renderFiltered();
+  }
+
+  function renderFiltered() {
     const results = document.getElementById('results');
     results.innerHTML = '';
     clearMarkers();
 
-    if (!Array.isArray(data)) {
-      setStatus('Something went wrong loading restaurants.');
+    document.getElementById('countPill').textContent = `${filteredRestaurants.length} result${filteredRestaurants.length === 1 ? '' : 's'}`;
+    setSummary(`${filteredRestaurants.length} restaurant${filteredRestaurants.length === 1 ? '' : 's'} shown`);
+
+    if (filteredRestaurants.length === 0) {
+      results.innerHTML = '<div class="empty-state">No restaurants match the current filters.</div>';
       return;
     }
-
-    if (data.length === 0) {
-      setStatus('No restaurants found for that search.');
-      return;
-    }
-
-    setStatus(`Found ${data.length} restaurants.`);
 
     const bounds = [];
 
-    data.forEach(r => {
+    filteredRestaurants.forEach(r => {
       if (r.gps && r.gps.latitude && r.gps.longitude) {
         const marker = L.marker([r.gps.latitude, r.gps.longitude])
           .addTo(map)
           .bindPopup(`<strong>${escapeHtml(r.name)}</strong><br>${escapeHtml(r.address || '')}`);
         markers.push(marker);
         bounds.push([r.gps.latitude, r.gps.longitude]);
-      }
 
+        marker.on('click', () => {
+          selectedRestaurantName = r.name;
+          renderCardsOnly();
+        });
+      }
+    });
+
+    renderCardsOnly();
+
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [30, 30] });
+    }
+  }
+
+  function renderCardsOnly() {
+    const results = document.getElementById('results');
+    results.innerHTML = '';
+
+    filteredRestaurants.forEach(r => {
       const card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'card' + (selectedRestaurantName === r.name ? ' active' : '');
+
+      card.onclick = () => {
+        selectedRestaurantName = r.name;
+        renderCardsOnly();
+
+        if (r.gps && r.gps.latitude && r.gps.longitude) {
+          map.setView([r.gps.latitude, r.gps.longitude], 15);
+          markers.forEach(marker => {
+            const ll = marker.getLatLng();
+            if (ll.lat === r.gps.latitude && ll.lng === r.gps.longitude) {
+              marker.openPopup();
+            }
+          });
+        }
+      };
 
       card.innerHTML = `
         <div class="image">${imageHtml(r)}</div>
         <div class="body">
-          <div class="title">${escapeHtml(r.name || 'Restaurant')}</div>
-          <div class="meta">${escapeHtml(r.type || '')}</div>
-          <div class="meta">⭐ ${r.rating || 'N/A'} (${r.reviews || 0} reviews)</div>
-          <div class="${openClass(r)}">${openText(r)}</div>
+          <div class="top-row">
+            <div class="title">${escapeHtml(r.name || 'Restaurant')}</div>
+            <div class="badge ${openClass(r)}">${openText(r)}</div>
+          </div>
+
+          <div class="meta">${escapeHtml(r.type || 'Cuisine not listed')}</div>
+
+          <div class="stats">
+            <div class="stat">⭐ ${r.rating || 'N/A'}</div>
+            <div class="stat">${r.reviews || 0} reviews</div>
+          </div>
+
           <div class="meta">${escapeHtml(r.address || '')}</div>
+
           <div class="link-row">
             ${r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer">View Menu / Website</a>` : ''}
           </div>
@@ -312,10 +658,25 @@
 
       results.appendChild(card);
     });
+  }
 
-    if (bounds.length > 0) {
-      map.fitBounds(bounds, { padding: [30, 30] });
+  function resetFilters() {
+    document.getElementById('openFilter').value = 'all';
+    document.getElementById('cuisineFilter').value = 'all';
+    document.getElementById('sortBy').value = 'best';
+    applyFilters();
+  }
+
+  function render(data) {
+    if (!Array.isArray(data)) {
+      setStatus('Something went wrong loading restaurants.');
+      return;
     }
+
+    allRestaurants = data;
+    selectedRestaurantName = null;
+    populateCuisineFilter(allRestaurants);
+    applyFilters();
   }
 
   async function search() {
@@ -324,6 +685,7 @@
 
     try {
       setStatus('Searching...');
+      setSummary('Loading...');
 
       if (mode === 'gps') {
         if (!navigator.geolocation) {
@@ -363,6 +725,7 @@
               const res = await fetch(`/api/restaurants?location=${encodeURIComponent(locationText)}`);
               const data = await res.json();
               render(data);
+              setStatus(`Showing restaurants near ${locationText}.`);
             } catch (err) {
               console.error(err);
               setStatus('Could not use your current location.');
@@ -400,16 +763,16 @@
       const res = await fetch(url);
       const data = await res.json();
       render(data);
+      setStatus(`Showing restaurants for ${input}.`);
     } catch (err) {
       console.error(err);
       setStatus('Search failed. Please try again.');
+      setSummary('0 restaurants');
     }
   }
 
   document.getElementById('input').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') {
-      search();
-    }
+    if (e.key === 'Enter') search();
   });
 
   updatePlaceholder();
