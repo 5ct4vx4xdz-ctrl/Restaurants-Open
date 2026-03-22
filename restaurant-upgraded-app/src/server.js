@@ -1,93 +1,822 @@
-const express = require('express');
-const axios = require('axios');
-const path = require('path');
-require('dotenv').config();
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Food and Drink Finder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; }
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(express.static(path.join(__dirname, '../public')));
-
-app.get('/api/places', async (req, res) => {
-  const { zip, location, lat, lng, category } = req.query;
-
-  try {
-    let placeType = 'restaurants';
-    if (category === 'wineries') placeType = 'wineries';
-    if (category === 'breweries') placeType = 'breweries';
-
-    let query = '';
-
-    if (zip) {
-      query = `${placeType} near ${zip}`;
-    } else if (location) {
-      query = `${placeType} near ${location}`;
-    } else if (lat && lng) {
-      query = `${placeType} near ${lat},${lng}`;
-    } else {
-      return res.status(400).json({ error: 'Missing location input' });
+    :root {
+      --bg1: #fff7ed;
+      --bg2: #eff6ff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --brand1: #f97316;
+      --brand2: #ec4899;
+      --brand3: #3b82f6;
+      --green: #15803d;
+      --red: #b91c1c;
+      --shadow: 0 10px 30px rgba(0,0,0,0.08);
     }
 
-    const response = await axios.get('https://serpapi.com/search.json', {
-      params: {
-        engine: 'google_maps',
-        q: query,
-        api_key: process.env.SERPAPI_KEY
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(249,115,22,.15), transparent 26%),
+        radial-gradient(circle at top right, rgba(59,130,246,.14), transparent 24%),
+        linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 100%);
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 20px 16px 12px;
+      text-align: center;
+      color: white;
+      background: linear-gradient(135deg, var(--brand1) 0%, var(--brand2) 50%, var(--brand3) 100%);
+      box-shadow: var(--shadow);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 32px;
+      line-height: 1.1;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      font-size: 15px;
+      opacity: 0.95;
+    }
+
+    .toolbar-wrap {
+      max-width: 1280px;
+      margin: 18px auto 0;
+      padding: 0 16px;
+    }
+
+    .toolbar {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.7);
+      box-shadow: var(--shadow);
+      border-radius: 22px;
+      padding: 16px;
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr 1.3fr 1fr 1fr 1fr 1fr auto auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    select, input, button {
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      font-size: 15px;
+      background: white;
+    }
+
+    input, select {
+      width: 100%;
+    }
+
+    button {
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .search-btn {
+      color: white;
+      background: linear-gradient(135deg, var(--brand1), var(--brand2));
+      box-shadow: 0 8px 18px rgba(236,72,153,0.22);
+    }
+
+    .reset-btn {
+      color: var(--text);
+      background: #f3f4f6;
+    }
+
+    #statusBar {
+      max-width: 1280px;
+      margin: 14px auto 0;
+      padding: 0 16px;
+    }
+
+    .status {
+      background: rgba(255,255,255,0.8);
+      border: 1px solid rgba(255,255,255,0.7);
+      border-radius: 16px;
+      padding: 12px 14px;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .layout {
+      max-width: 1280px;
+      margin: 16px auto 24px;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: 420px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      background: rgba(255,255,255,0.9);
+      border: 1px solid rgba(255,255,255,0.7);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,255,255,0.55));
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .count-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #fde68a, #fbcfe8);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    #results {
+      padding: 14px;
+      display: grid;
+      gap: 14px;
+      max-height: calc(100vh - 285px);
+      overflow: auto;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 28px 18px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #f1f5f9;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+
+    .card:hover, .card.active {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.09);
+      border-color: #f9a8d4;
+    }
+
+    .image {
+      height: 180px;
+      background:
+        radial-gradient(circle at top left, rgba(249,115,22,.18), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(59,130,246,.18), transparent 30%),
+        #f3f4f6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .body {
+      padding: 14px;
+    }
+
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .open {
+      background: #dcfce7;
+      color: var(--green);
+    }
+
+    .closed {
+      background: #fee2e2;
+      color: var(--red);
+    }
+
+    .unknown {
+      background: #f3f4f6;
+      color: var(--muted);
+    }
+
+    .meta {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 7px;
+      line-height: 1.45;
+    }
+
+    .stats {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .stat {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 13px;
+      color: #334155;
+    }
+
+    .link-row {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .link-row a {
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 13px;
+      color: #1d4ed8;
+      background: #eff6ff;
+      padding: 9px 11px;
+      border-radius: 10px;
+      border: 1px solid #dbeafe;
+    }
+
+    #map {
+      height: calc(100vh - 285px);
+      min-height: 560px;
+      width: 100%;
+    }
+
+    @media (max-width: 1200px) {
+      .controls-grid {
+        grid-template-columns: 1fr 1fr 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 1150px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      #results {
+        max-height: none;
+      }
+
+      #map {
+        height: 430px;
+        min-height: 430px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      header h1 {
+        font-size: 28px;
+      }
+
+      .controls-grid {
+        grid-template-columns: 1fr;
+      }
+
+      #map {
+        height: 320px;
+        min-height: 320px;
+      }
+
+      .image {
+        height: 155px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Food and Drink Finder</h1>
+  <p>Search restaurants, wineries, and breweries by ZIP, City/State, or Current Location.</p>
+</header>
+
+<div class="toolbar-wrap">
+  <div class="toolbar">
+    <div class="controls-grid">
+      <div class="field">
+        <label for="category">Type</label>
+        <select id="category">
+          <option value="restaurants">Restaurants</option>
+          <option value="wineries">Wineries</option>
+          <option value="breweries">Breweries</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="mode">Search By</label>
+        <select id="mode" onchange="updatePlaceholder()">
+          <option value="zip">ZIP Code</option>
+          <option value="city">City, State</option>
+          <option value="gps">Current Location</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="input">Location</label>
+        <input id="input" placeholder="Enter ZIP code" />
+      </div>
+
+      <div class="field">
+        <label for="openFilter">Open Status</label>
+        <select id="openFilter" onchange="applyFilters()">
+          <option value="all">All Places</option>
+          <option value="open">Open Now Only</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="distanceFilter">Distance</label>
+        <select id="distanceFilter" onchange="applyFilters()">
+          <option value="all">Any Distance</option>
+          <option value="1">Within 1 mile</option>
+          <option value="3">Within 3 miles</option>
+          <option value="5">Within 5 miles</option>
+          <option value="10">Within 10 miles</option>
+          <option value="15">Within 15 miles</option>
+          <option value="25">Within 25 miles</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="cuisineFilter">Category Detail</label>
+        <select id="cuisineFilter" onchange="applyFilters()">
+          <option value="all">All</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="sortBy">Sort By</label>
+        <select id="sortBy" onchange="applyFilters()">
+          <option value="best">Best Overall</option>
+          <option value="rating">Highest Rating</option>
+          <option value="reviews">Most Reviews</option>
+          <option value="distance">Closest</option>
+          <option value="name">Name A–Z</option>
+        </select>
+      </div>
+
+      <button class="search-btn" onclick="search()">Search</button>
+      <button class="reset-btn" onclick="resetFilters()">Reset</button>
+    </div>
+  </div>
+</div>
+
+<div id="statusBar">
+  <div class="status">
+    <div id="status">Search by ZIP code, City/State, or Current Location.</div>
+    <div id="summary">0 places</div>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Results</h2>
+      <div class="count-pill" id="countPill">0 results</div>
+    </div>
+    <div id="results">
+      <div class="empty-state">Run a search to see results, filters, and map pins.</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div id="map"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+  let map = L.map('map').setView([37.8, -96], 4);
+  let markers = [];
+  let allPlaces = [];
+  let filteredPlaces = [];
+  let selectedPlaceName = null;
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(map);
+
+  function updatePlaceholder() {
+    const mode = document.getElementById('mode').value;
+    const input = document.getElementById('input');
+
+    if (mode === 'zip') {
+      input.placeholder = 'Enter ZIP code';
+      input.disabled = false;
+      input.value = '';
+    } else if (mode === 'city') {
+      input.placeholder = 'City, State (ex: Atlanta, GA)';
+      input.disabled = false;
+      input.value = '';
+    } else {
+      input.placeholder = 'Using your current location...';
+      input.disabled = true;
+      input.value = '';
+    }
+  }
+
+  function clearMarkers() {
+    markers.forEach(marker => map.removeLayer(marker));
+    markers = [];
+  }
+
+  function setStatus(message) {
+    document.getElementById('status').textContent = message;
+  }
+
+  function setSummary(message) {
+    document.getElementById('summary').textContent = message;
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function imageHtml(r) {
+    if (r.thumbnail && r.thumbnail.includes('http')) {
+      return `<img src="${r.thumbnail}" alt="${escapeHtml(r.name || 'Place')}" loading="lazy"
+        onerror="this.parentNode.innerHTML='No Image Available'">`;
+    }
+    return 'No Image Available';
+  }
+
+  function openClass(r) {
+    if (r.open === true) return 'open';
+    if (r.open === false) return 'closed';
+    return 'unknown';
+  }
+
+  function openText(r) {
+    if (r.open === true) return 'Open Now';
+    if (r.open === false) return 'Closed';
+    return 'Hours Unknown';
+  }
+
+  function normalizeDetail(type) {
+    if (!type) return 'Other';
+    return type.trim();
+  }
+
+  function populateDetailFilter(data) {
+    const select = document.getElementById('cuisineFilter');
+    const current = select.value;
+
+    const details = [...new Set(
+      data.map(r => normalizeDetail(r.type)).filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b));
+
+    select.innerHTML = '<option value="all">All</option>';
+    details.forEach(detail => {
+      const option = document.createElement('option');
+      option.value = detail;
+      option.textContent = detail;
+      select.appendChild(option);
+    });
+
+    if ([...select.options].some(o => o.value === current)) {
+      select.value = current;
+    }
+  }
+
+  function scorePlace(r) {
+    const rating = Number(r.rating || 0);
+    const reviews = Number(r.reviews || 0);
+    const openBoost = r.open === true ? 0.25 : 0;
+    const distanceBoost = r.distanceMiles != null ? Math.max(0, 2 - Math.min(r.distanceMiles, 10) / 5) : 0;
+    return rating + Math.min(reviews, 500) / 500 + openBoost + distanceBoost;
+  }
+
+  function applyFilters() {
+    const openFilter = document.getElementById('openFilter').value;
+    const detailFilter = document.getElementById('cuisineFilter').value;
+    const sortBy = document.getElementById('sortBy').value;
+    const distanceFilter = document.getElementById('distanceFilter').value;
+
+    filteredPlaces = allPlaces.filter(r => {
+      const matchesOpen = openFilter === 'all' || r.open === true;
+      const matchesDetail = detailFilter === 'all' || normalizeDetail(r.type) === detailFilter;
+
+      let matchesDistance = true;
+      if (distanceFilter !== 'all') {
+        const maxMiles = Number(distanceFilter);
+        matchesDistance = r.distanceMiles != null && r.distanceMiles <= maxMiles;
+      }
+
+      return matchesOpen && matchesDetail && matchesDistance;
+    });
+
+    filteredPlaces.sort((a, b) => {
+      if (sortBy === 'rating') {
+        return (Number(b.rating || 0) - Number(a.rating || 0)) || (Number(b.reviews || 0) - Number(a.reviews || 0));
+      }
+      if (sortBy === 'reviews') {
+        return (Number(b.reviews || 0) - Number(a.reviews || 0)) || (Number(b.rating || 0) - Number(a.rating || 0));
+      }
+      if (sortBy === 'distance') {
+        return (a.distanceMiles ?? 999999) - (b.distanceMiles ?? 999999);
+      }
+      if (sortBy === 'name') {
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      return scorePlace(b) - scorePlace(a);
+    });
+
+    renderFiltered();
+  }
+
+  function renderFiltered() {
+    const results = document.getElementById('results');
+    results.innerHTML = '';
+    clearMarkers();
+
+    document.getElementById('countPill').textContent = `${filteredPlaces.length} result${filteredPlaces.length === 1 ? '' : 's'}`;
+    setSummary(`${filteredPlaces.length} place${filteredPlaces.length === 1 ? '' : 's'} shown`);
+
+    if (filteredPlaces.length === 0) {
+      results.innerHTML = '<div class="empty-state">No results match the current filters.</div>';
+      return;
+    }
+
+    const bounds = [];
+
+    filteredPlaces.forEach(r => {
+      if (r.gps && r.gps.latitude && r.gps.longitude) {
+        const marker = L.marker([r.gps.latitude, r.gps.longitude])
+          .addTo(map)
+          .bindPopup(`<strong>${escapeHtml(r.name)}</strong><br>${escapeHtml(r.address || '')}`);
+        markers.push(marker);
+        bounds.push([r.gps.latitude, r.gps.longitude]);
+
+        marker.on('click', () => {
+          selectedPlaceName = r.name;
+          renderCardsOnly();
+        });
       }
     });
 
-    const results = response.data.local_results || [];
+    renderCardsOnly();
 
-    const formatted = results.map(r => ({
-      name: r.title,
-      rating: r.rating,
-      reviews: r.reviews,
-      address: r.address,
-      open: r.opening_hours?.open_now,
-      type: r.type,
-      link: r.website || r.link,
-      thumbnail: r.thumbnail,
-      gps: r.gps_coordinates,
-      distanceText: r.distance || '',
-      distanceMiles: parseDistanceToMiles(r.distance)
-    }));
-
-    res.json(formatted);
-
-  } catch (err) {
-    console.error(err?.response?.data || err.message);
-    res.status(500).json({ error: 'Error fetching data' });
-  }
-});
-
-function parseDistanceToMiles(distance) {
-  if (!distance || typeof distance !== 'string') return null;
-
-  const text = distance.toLowerCase().trim();
-
-  const mileMatch = text.match(/([\\d.]+)\\s*mi/);
-  if (mileMatch) return parseFloat(mileMatch[1]);
-
-  const footMatch = text.match(/([\\d,]+)\\s*ft/);
-  if (footMatch) {
-    const feet = parseFloat(footMatch[1].replace(/,/g, ''));
-    return feet / 5280;
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [30, 30] });
+    }
   }
 
-  const kmMatch = text.match(/([\\d.]+)\\s*km/);
-  if (kmMatch) {
-    return parseFloat(kmMatch[1]) * 0.621371;
+  function renderCardsOnly() {
+    const results = document.getElementById('results');
+    results.innerHTML = '';
+
+    filteredPlaces.forEach(r => {
+      const card = document.createElement('div');
+      card.className = 'card' + (selectedPlaceName === r.name ? ' active' : '');
+
+      card.onclick = () => {
+        selectedPlaceName = r.name;
+        renderCardsOnly();
+
+        if (r.gps && r.gps.latitude && r.gps.longitude) {
+          map.setView([r.gps.latitude, r.gps.longitude], 15);
+          markers.forEach(marker => {
+            const ll = marker.getLatLng();
+            if (ll.lat === r.gps.latitude && ll.lng === r.gps.longitude) {
+              marker.openPopup();
+            }
+          });
+        }
+      };
+
+      const distanceLine = r.distanceText
+        ? `<div class="stat">${escapeHtml(r.distanceText)}</div>`
+        : '';
+
+      card.innerHTML = `
+        <div class="image">${imageHtml(r)}</div>
+        <div class="body">
+          <div class="top-row">
+            <div class="title">${escapeHtml(r.name || 'Place')}</div>
+            <div class="badge ${openClass(r)}">${openText(r)}</div>
+          </div>
+
+          <div class="meta">${escapeHtml(r.type || 'Category not listed')}</div>
+
+          <div class="stats">
+            <div class="stat">⭐ ${r.rating || 'N/A'}</div>
+            <div class="stat">${r.reviews || 0} reviews</div>
+            ${distanceLine}
+          </div>
+
+          <div class="meta">${escapeHtml(r.address || '')}</div>
+
+          <div class="link-row">
+            ${r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer">View Website / Details</a>` : ''}
+          </div>
+        </div>
+      `;
+
+      results.appendChild(card);
+    });
   }
 
-  const meterMatch = text.match(/([\\d,]+)\\s*m\\b/);
-  if (meterMatch) {
-    const meters = parseFloat(meterMatch[1].replace(/,/g, ''));
-    return meters * 0.000621371;
+  function resetFilters() {
+    document.getElementById('openFilter').value = 'all';
+    document.getElementById('distanceFilter').value = 'all';
+    document.getElementById('cuisineFilter').value = 'all';
+    document.getElementById('sortBy').value = 'best';
+    applyFilters();
   }
 
-  return null;
-}
+  function render(data) {
+    if (!Array.isArray(data)) {
+      setStatus('Something went wrong loading results.');
+      return;
+    }
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+    allPlaces = data;
+    selectedPlaceName = null;
+    populateDetailFilter(allPlaces);
+    applyFilters();
+  }
+
+  async function search() {
+    const category = document.getElementById('category').value;
+    const mode = document.getElementById('mode').value;
+    const input = document.getElementById('input').value.trim();
+
+    try {
+      setStatus('Searching...');
+      setSummary('Loading...');
+
+      if (mode === 'gps') {
+        if (!navigator.geolocation) {
+          setStatus('Your browser does not support location services.');
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          async pos => {
+            try {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+
+              const geoRes = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`
+              );
+              const geoData = await geoRes.json();
+
+              const address = geoData.address || {};
+              const city = address.city || address.town || address.village || address.hamlet || '';
+              const state = address.state || '';
+              const postcode = address.postcode || '';
+
+              let locationText = '';
+
+              if (postcode) {
+                locationText = postcode;
+              } else if (city && state) {
+                locationText = `${city}, ${state}`;
+              } else if (geoData.display_name) {
+                locationText = geoData.display_name;
+              } else {
+                setStatus('Could not determine your location well enough to search.');
+                return;
+              }
+
+              const res = await fetch(`/api/places?location=${encodeURIComponent(locationText)}&category=${encodeURIComponent(category)}`);
+              const data = await res.json();
+              render(data);
+              setStatus(`Showing ${category} near ${locationText}.`);
+            } catch (err) {
+              console.error(err);
+              setStatus('Could not use your current location.');
+            }
+          },
+          err => {
+            if (err.code === 1) {
+              setStatus('Location permission was denied. Please allow location access in your browser.');
+            } else if (err.code === 2) {
+              setStatus('Your location could not be determined.');
+            } else if (err.code === 3) {
+              setStatus('Location request timed out. Please try again.');
+            } else {
+              setStatus('Could not access your location.');
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000
+          }
+        );
+
+        return;
+      }
+
+      let url = '';
+
+      if (mode === 'zip') {
+        url = `/api/places?zip=${encodeURIComponent(input)}&category=${encodeURIComponent(category)}`;
+      } else if (mode === 'city') {
+        url = `/api/places?location=${encodeURIComponent(input)}&category=${encodeURIComponent(category)}`;
+      }
+
+      const res = await fetch(url);
+      const data = await res.json();
+      render(data);
+      setStatus(`Showing ${category} for ${input}.`);
+    } catch (err) {
+      console.error(err);
+      setStatus('Search failed. Please try again.');
+      setSummary('0 places');
+    }
+  }
+
+  document.getElementById('input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') search();
+  });
+
+  updatePlaceholder();
+</script>
+
+</body>
+</html>
