@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Find Restaurants</title>
+  <title>Food and Drink Finder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
@@ -10,7 +10,6 @@
     :root {
       --bg1: #fff7ed;
       --bg2: #eff6ff;
-      --card: #ffffff;
       --text: #1f2937;
       --muted: #6b7280;
       --line: #e5e7eb;
@@ -70,7 +69,7 @@
 
     .controls-grid {
       display: grid;
-      grid-template-columns: 1fr 1.2fr 1fr 1fr 1fr 1fr auto auto;
+      grid-template-columns: 1fr 1.1fr 1.3fr 1fr 1fr 1fr 1fr auto auto;
       gap: 12px;
       align-items: end;
     }
@@ -320,6 +319,12 @@
       width: 100%;
     }
 
+    @media (max-width: 1200px) {
+      .controls-grid {
+        grid-template-columns: 1fr 1fr 1fr 1fr;
+      }
+    }
+
     @media (max-width: 1150px) {
       .layout {
         grid-template-columns: 1fr;
@@ -332,12 +337,6 @@
       #map {
         height: 430px;
         min-height: 430px;
-      }
-    }
-
-    @media (max-width: 980px) {
-      .controls-grid {
-        grid-template-columns: 1fr 1fr 1fr;
       }
     }
 
@@ -364,13 +363,22 @@
 <body>
 
 <header>
-  <h1>Find Restaurants</h1>
-  <p>Search by ZIP, City/State, or Current Location with premium filters and a live map.</p>
+  <h1>Food and Drink Finder</h1>
+  <p>Search restaurants, wineries, and breweries by ZIP, City/State, or Current Location.</p>
 </header>
 
 <div class="toolbar-wrap">
   <div class="toolbar">
     <div class="controls-grid">
+      <div class="field">
+        <label for="category">Type</label>
+        <select id="category">
+          <option value="restaurants">Restaurants</option>
+          <option value="wineries">Wineries</option>
+          <option value="breweries">Breweries</option>
+        </select>
+      </div>
+
       <div class="field">
         <label for="mode">Search By</label>
         <select id="mode" onchange="updatePlaceholder()">
@@ -388,7 +396,7 @@
       <div class="field">
         <label for="openFilter">Open Status</label>
         <select id="openFilter" onchange="applyFilters()">
-          <option value="all">All Restaurants</option>
+          <option value="all">All Places</option>
           <option value="open">Open Now Only</option>
         </select>
       </div>
@@ -407,9 +415,9 @@
       </div>
 
       <div class="field">
-        <label for="cuisineFilter">Cuisine</label>
+        <label for="cuisineFilter">Category Detail</label>
         <select id="cuisineFilter" onchange="applyFilters()">
-          <option value="all">All Cuisines</option>
+          <option value="all">All</option>
         </select>
       </div>
 
@@ -433,18 +441,18 @@
 <div id="statusBar">
   <div class="status">
     <div id="status">Search by ZIP code, City/State, or Current Location.</div>
-    <div id="summary">0 restaurants</div>
+    <div id="summary">0 places</div>
   </div>
 </div>
 
 <div class="layout">
   <div class="panel">
     <div class="panel-head">
-      <h2>Restaurants</h2>
+      <h2>Results</h2>
       <div class="count-pill" id="countPill">0 results</div>
     </div>
     <div id="results">
-      <div class="empty-state">Run a search to see restaurants, filters, and map pins.</div>
+      <div class="empty-state">Run a search to see results, filters, and map pins.</div>
     </div>
   </div>
 
@@ -457,9 +465,9 @@
 <script>
   let map = L.map('map').setView([37.8, -96], 4);
   let markers = [];
-  let allRestaurants = [];
-  let filteredRestaurants = [];
-  let selectedRestaurantName = null;
+  let allPlaces = [];
+  let filteredPlaces = [];
+  let selectedPlaceName = null;
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19
@@ -508,7 +516,7 @@
 
   function imageHtml(r) {
     if (r.thumbnail && r.thumbnail.includes('http')) {
-      return `<img src="${r.thumbnail}" alt="${escapeHtml(r.name || 'Restaurant')}" loading="lazy"
+      return `<img src="${r.thumbnail}" alt="${escapeHtml(r.name || 'Place')}" loading="lazy"
         onerror="this.parentNode.innerHTML='No Image Available'">`;
     }
     return 'No Image Available';
@@ -526,24 +534,24 @@
     return 'Hours Unknown';
   }
 
-  function normalizeCuisine(type) {
+  function normalizeDetail(type) {
     if (!type) return 'Other';
     return type.trim();
   }
 
-  function populateCuisineFilter(data) {
+  function populateDetailFilter(data) {
     const select = document.getElementById('cuisineFilter');
     const current = select.value;
 
-    const cuisines = [...new Set(
-      data.map(r => normalizeCuisine(r.type)).filter(Boolean)
+    const details = [...new Set(
+      data.map(r => normalizeDetail(r.type)).filter(Boolean)
     )].sort((a, b) => a.localeCompare(b));
 
-    select.innerHTML = '<option value="all">All Cuisines</option>';
-    cuisines.forEach(cuisine => {
+    select.innerHTML = '<option value="all">All</option>';
+    details.forEach(detail => {
       const option = document.createElement('option');
-      option.value = cuisine;
-      option.textContent = cuisine;
+      option.value = detail;
+      option.textContent = detail;
       select.appendChild(option);
     });
 
@@ -552,7 +560,7 @@
     }
   }
 
-  function scoreRestaurant(r) {
+  function scorePlace(r) {
     const rating = Number(r.rating || 0);
     const reviews = Number(r.reviews || 0);
     const openBoost = r.open === true ? 0.25 : 0;
@@ -562,13 +570,13 @@
 
   function applyFilters() {
     const openFilter = document.getElementById('openFilter').value;
-    const cuisineFilter = document.getElementById('cuisineFilter').value;
+    const detailFilter = document.getElementById('cuisineFilter').value;
     const sortBy = document.getElementById('sortBy').value;
     const distanceFilter = document.getElementById('distanceFilter').value;
 
-    filteredRestaurants = allRestaurants.filter(r => {
+    filteredPlaces = allPlaces.filter(r => {
       const matchesOpen = openFilter === 'all' || r.open === true;
-      const matchesCuisine = cuisineFilter === 'all' || normalizeCuisine(r.type) === cuisineFilter;
+      const matchesDetail = detailFilter === 'all' || normalizeDetail(r.type) === detailFilter;
 
       let matchesDistance = true;
       if (distanceFilter !== 'all') {
@@ -576,10 +584,10 @@
         matchesDistance = r.distanceMiles != null && r.distanceMiles <= maxMiles;
       }
 
-      return matchesOpen && matchesCuisine && matchesDistance;
+      return matchesOpen && matchesDetail && matchesDistance;
     });
 
-    filteredRestaurants.sort((a, b) => {
+    filteredPlaces.sort((a, b) => {
       if (sortBy === 'rating') {
         return (Number(b.rating || 0) - Number(a.rating || 0)) || (Number(b.reviews || 0) - Number(a.reviews || 0));
       }
@@ -592,7 +600,7 @@
       if (sortBy === 'name') {
         return (a.name || '').localeCompare(b.name || '');
       }
-      return scoreRestaurant(b) - scoreRestaurant(a);
+      return scorePlace(b) - scorePlace(a);
     });
 
     renderFiltered();
@@ -603,17 +611,17 @@
     results.innerHTML = '';
     clearMarkers();
 
-    document.getElementById('countPill').textContent = `${filteredRestaurants.length} result${filteredRestaurants.length === 1 ? '' : 's'}`;
-    setSummary(`${filteredRestaurants.length} restaurant${filteredRestaurants.length === 1 ? '' : 's'} shown`);
+    document.getElementById('countPill').textContent = `${filteredPlaces.length} result${filteredPlaces.length === 1 ? '' : 's'}`;
+    setSummary(`${filteredPlaces.length} place${filteredPlaces.length === 1 ? '' : 's'} shown`);
 
-    if (filteredRestaurants.length === 0) {
-      results.innerHTML = '<div class="empty-state">No restaurants match the current filters.</div>';
+    if (filteredPlaces.length === 0) {
+      results.innerHTML = '<div class="empty-state">No results match the current filters.</div>';
       return;
     }
 
     const bounds = [];
 
-    filteredRestaurants.forEach(r => {
+    filteredPlaces.forEach(r => {
       if (r.gps && r.gps.latitude && r.gps.longitude) {
         const marker = L.marker([r.gps.latitude, r.gps.longitude])
           .addTo(map)
@@ -622,7 +630,7 @@
         bounds.push([r.gps.latitude, r.gps.longitude]);
 
         marker.on('click', () => {
-          selectedRestaurantName = r.name;
+          selectedPlaceName = r.name;
           renderCardsOnly();
         });
       }
@@ -639,12 +647,12 @@
     const results = document.getElementById('results');
     results.innerHTML = '';
 
-    filteredRestaurants.forEach(r => {
+    filteredPlaces.forEach(r => {
       const card = document.createElement('div');
-      card.className = 'card' + (selectedRestaurantName === r.name ? ' active' : '');
+      card.className = 'card' + (selectedPlaceName === r.name ? ' active' : '');
 
       card.onclick = () => {
-        selectedRestaurantName = r.name;
+        selectedPlaceName = r.name;
         renderCardsOnly();
 
         if (r.gps && r.gps.latitude && r.gps.longitude) {
@@ -666,11 +674,11 @@
         <div class="image">${imageHtml(r)}</div>
         <div class="body">
           <div class="top-row">
-            <div class="title">${escapeHtml(r.name || 'Restaurant')}</div>
+            <div class="title">${escapeHtml(r.name || 'Place')}</div>
             <div class="badge ${openClass(r)}">${openText(r)}</div>
           </div>
 
-          <div class="meta">${escapeHtml(r.type || 'Cuisine not listed')}</div>
+          <div class="meta">${escapeHtml(r.type || 'Category not listed')}</div>
 
           <div class="stats">
             <div class="stat">⭐ ${r.rating || 'N/A'}</div>
@@ -681,7 +689,7 @@
           <div class="meta">${escapeHtml(r.address || '')}</div>
 
           <div class="link-row">
-            ${r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer">View Menu / Website</a>` : ''}
+            ${r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer">View Website / Details</a>` : ''}
           </div>
         </div>
       `;
@@ -700,17 +708,18 @@
 
   function render(data) {
     if (!Array.isArray(data)) {
-      setStatus('Something went wrong loading restaurants.');
+      setStatus('Something went wrong loading results.');
       return;
     }
 
-    allRestaurants = data;
-    selectedRestaurantName = null;
-    populateCuisineFilter(allRestaurants);
+    allPlaces = data;
+    selectedPlaceName = null;
+    populateDetailFilter(allPlaces);
     applyFilters();
   }
 
   async function search() {
+    const category = document.getElementById('category').value;
     const mode = document.getElementById('mode').value;
     const input = document.getElementById('input').value.trim();
 
@@ -753,10 +762,10 @@
                 return;
               }
 
-              const res = await fetch(`/api/restaurants?location=${encodeURIComponent(locationText)}`);
+              const res = await fetch(`/api/places?location=${encodeURIComponent(locationText)}&category=${encodeURIComponent(category)}`);
               const data = await res.json();
               render(data);
-              setStatus(`Showing restaurants near ${locationText}.`);
+              setStatus(`Showing ${category} near ${locationText}.`);
             } catch (err) {
               console.error(err);
               setStatus('Could not use your current location.');
@@ -786,19 +795,19 @@
       let url = '';
 
       if (mode === 'zip') {
-        url = `/api/restaurants?zip=${encodeURIComponent(input)}`;
+        url = `/api/places?zip=${encodeURIComponent(input)}&category=${encodeURIComponent(category)}`;
       } else if (mode === 'city') {
-        url = `/api/restaurants?location=${encodeURIComponent(input)}`;
+        url = `/api/places?location=${encodeURIComponent(input)}&category=${encodeURIComponent(category)}`;
       }
 
       const res = await fetch(url);
       const data = await res.json();
       render(data);
-      setStatus(`Showing restaurants for ${input}.`);
+      setStatus(`Showing ${category} for ${input}.`);
     } catch (err) {
       console.error(err);
       setStatus('Search failed. Please try again.');
-      setSummary('0 restaurants');
+      setSummary('0 places');
     }
   }
 
