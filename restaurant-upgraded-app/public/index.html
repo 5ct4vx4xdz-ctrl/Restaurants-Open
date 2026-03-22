@@ -109,12 +109,16 @@
 <header>Find Open Restaurants</header>
 
 <div id="controls">
-  <input id="zip" placeholder="Enter ZIP code" />
+  <select id="mode">
+    <option value="zip">ZIP Code</option>
+    <option value="city">City, State</option>
+    <option value="gps">Current Location</option>
+  </select>
+
+  <input id="input" placeholder="Enter ZIP code" />
+
   <button onclick="search()">Search</button>
 </div>
-
-<div id="map"></div>
-<div id="results"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
