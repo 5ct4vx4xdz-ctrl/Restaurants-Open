@@ -8,18 +8,22 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, '../public')));
 
-app.get('/api/restaurants', async (req, res) => {
-  const { zip, location, lat, lng } = req.query;
+app.get('/api/places', async (req, res) => {
+  const { zip, location, lat, lng, category } = req.query;
 
   try {
+    let placeType = 'restaurants';
+    if (category === 'wineries') placeType = 'wineries';
+    if (category === 'breweries') placeType = 'breweries';
+
     let query = '';
 
     if (zip) {
-      query = `restaurants near ${zip}`;
+      query = `${placeType} near ${zip}`;
     } else if (location) {
-      query = `restaurants near ${location}`;
+      query = `${placeType} near ${location}`;
     } else if (lat && lng) {
-      query = `restaurants near ${lat},${lng}`;
+      query = `${placeType} near ${lat},${lng}`;
     } else {
       return res.status(400).json({ error: 'Missing location input' });
     }
@@ -61,21 +65,21 @@ function parseDistanceToMiles(distance) {
 
   const text = distance.toLowerCase().trim();
 
-  const mileMatch = text.match(/([\d.]+)\s*mi/);
+  const mileMatch = text.match(/([\\d.]+)\\s*mi/);
   if (mileMatch) return parseFloat(mileMatch[1]);
 
-  const footMatch = text.match(/([\d,]+)\s*ft/);
+  const footMatch = text.match(/([\\d,]+)\\s*ft/);
   if (footMatch) {
     const feet = parseFloat(footMatch[1].replace(/,/g, ''));
     return feet / 5280;
   }
 
-  const kmMatch = text.match(/([\d.]+)\s*km/);
+  const kmMatch = text.match(/([\\d.]+)\\s*km/);
   if (kmMatch) {
     return parseFloat(kmMatch[1]) * 0.621371;
   }
 
-  const meterMatch = text.match(/([\d,]+)\s*m\b/);
+  const meterMatch = text.match(/([\\d,]+)\\s*m\\b/);
   if (meterMatch) {
     const meters = parseFloat(meterMatch[1].replace(/,/g, ''));
     return meters * 0.000621371;
