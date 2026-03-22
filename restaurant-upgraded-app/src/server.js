@@ -1,4 +1,3 @@
-
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
@@ -10,13 +9,25 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, '../public')));
 
 app.get('/api/restaurants', async (req, res) => {
-  const { zip } = req.query;
+  const { zip, location, lat, lng } = req.query;
 
   try {
+    let query = '';
+
+    if (zip) {
+      query = `restaurants near ${zip}`;
+    } else if (location) {
+      query = `restaurants near ${location}`;
+    } else if (lat && lng) {
+      query = `restaurants near ${lat},${lng}`;
+    } else {
+      return res.status(400).json({ error: 'Missing location input' });
+    }
+
     const response = await axios.get('https://serpapi.com/search.json', {
       params: {
         engine: 'google_maps',
-        q: `restaurants near ${zip}`,
+        q: query,
         api_key: process.env.SERPAPI_KEY
       }
     });
@@ -36,6 +47,7 @@ app.get('/api/restaurants', async (req, res) => {
     }));
 
     res.json(formatted);
+
   } catch (err) {
     res.status(500).json({ error: 'Error fetching data' });
   }
