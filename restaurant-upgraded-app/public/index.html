@@ -371,4 +371,665 @@
       }
     }
 
-    @media (max-width:
+    @media (max-width: 1150px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      #results {
+        max-height: none;
+      }
+
+      #map {
+        height: 430px;
+        min-height: 430px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      header h1 {
+        font-size: 28px;
+      }
+
+      .controls-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .image {
+        min-height: 120px;
+      }
+
+      #map {
+        height: 320px;
+        min-height: 320px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Food and Drink Finder</h1>
+  <p>Search restaurants, wineries, and breweries by ZIP, City/State, or Current Location.</p>
+</header>
+
+<div class="toolbar-wrap">
+  <div class="toolbar">
+    <div class="controls-grid">
+      <div class="field">
+        <label for="category">Type</label>
+        <select id="category">
+          <option value="restaurants">Restaurants</option>
+          <option value="wineries">Wineries</option>
+          <option value="breweries">Breweries</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="mode">Search By</label>
+        <select id="mode" onchange="updatePlaceholder()">
+          <option value="zip">ZIP Code</option>
+          <option value="city">City, State</option>
+          <option value="gps">Current Location</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="input">Location</label>
+        <input id="input" placeholder="Enter ZIP code">
+      </div>
+
+      <div class="field">
+        <label for="openFilter">Open Status</label>
+        <select id="openFilter" onchange="applyFilters()">
+          <option value="all">All Places</option>
+          <option value="open">Open Now Only</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="distanceFilter">Distance</label>
+        <select id="distanceFilter" onchange="applyFilters()">
+          <option value="all">Any Distance</option>
+          <option value="1">Within 1 mile</option>
+          <option value="3">Within 3 miles</option>
+          <option value="5">Within 5 miles</option>
+          <option value="10">Within 10 miles</option>
+          <option value="15">Within 15 miles</option>
+          <option value="25">Within 25 miles</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="cuisineFilter">Category Detail</label>
+        <select id="cuisineFilter" onchange="applyFilters()">
+          <option value="all">All</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="sortBy">Sort By</label>
+        <select id="sortBy" onchange="applyFilters()">
+          <option value="best">Best Overall</option>
+          <option value="rating">Highest Rating</option>
+          <option value="reviews">Most Reviews</option>
+          <option value="distance">Closest</option>
+          <option value="name">Name A-Z</option>
+        </select>
+      </div>
+
+      <button class="search-btn" onclick="search()">Search</button>
+      <button class="reset-btn" onclick="resetFilters()">Reset</button>
+    </div>
+  </div>
+</div>
+
+<div id="statusBar">
+  <div class="status">
+    <div id="status">Search by ZIP code, City/State, or Current Location.</div>
+    <div id="summary">0 places</div>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Results</h2>
+      <div class="count-pill" id="countPill">0 results</div>
+    </div>
+    <div id="results">
+      <div class="empty-state">Run a search to see results, filters, and map pins.</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div id="map"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+  let map = L.map('map').setView([37.8, -96], 4);
+  let markers = [];
+  let currentLocationMarker = null;
+  let allPlaces = [];
+  let filteredPlaces = [];
+  let selectedPlaceName = null;
+  let originPoint = null;
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(map);
+
+  function updatePlaceholder() {
+    const mode = document.getElementById('mode').value;
+    const input = document.getElementById('input');
+
+    if (mode === 'zip') {
+      input.placeholder = 'Enter ZIP code';
+      input.disabled = false;
+      input.value = '';
+    } else if (mode === 'city') {
+      input.placeholder = 'City, State (ex: Atlanta, GA)';
+      input.disabled = false;
+      input.value = '';
+    } else {
+      input.placeholder = 'Using your current location...';
+      input.disabled = true;
+      input.value = '';
+    }
+  }
+
+  function clearMarkers() {
+    markers.forEach(marker => map.removeLayer(marker));
+    markers = [];
+  }
+
+  function clearCurrentLocationMarker() {
+    if (currentLocationMarker) {
+      map.removeLayer(currentLocationMarker);
+      currentLocationMarker = null;
+    }
+  }
+
+  function syncCurrentLocationMarker(bounds) {
+    clearCurrentLocationMarker();
+
+    if (!originPoint) return;
+
+    currentLocationMarker = L.circleMarker([originPoint.latitude, originPoint.longitude], {
+      radius: 9,
+      weight: 3,
+      color: '#1d4ed8',
+      fillColor: '#60a5fa',
+      fillOpacity: 0.8
+    })
+      .addTo(map)
+      .bindPopup('Current location');
+
+    bounds.push([originPoint.latitude, originPoint.longitude]);
+  }
+
+  function setStatus(message) {
+    document.getElementById('status').textContent = message;
+  }
+
+  function setSummary(message) {
+    document.getElementById('summary').textContent = message;
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function handleImageLoad(img) {
+    const wrapper = img.closest('.image');
+    if (!wrapper) return;
+
+    const isLowRes = img.naturalWidth < 240 || img.naturalHeight < 160;
+    wrapper.dataset.note = isLowRes ? 'Small preview image' : '';
+    wrapper.classList.toggle('low-res', isLowRes);
+  }
+
+  function imageHtml(r) {
+    if (r.image && r.image.includes('http')) {
+      return '<img' +
+        ' src="' + escapeHtml(r.image) + '"' +
+        ' alt="' + escapeHtml(r.name || 'Place') + '"' +
+        ' loading="lazy"' +
+        ' referrerpolicy="no-referrer"' +
+        ' decoding="async"' +
+        ' onload="handleImageLoad(this)"' +
+        ' onerror="this.parentNode.dataset.note=\'No image available\';this.parentNode.classList.add(\'low-res\');this.remove()"' +
+      '>';
+    }
+
+    return 'No Image Available';
+  }
+
+  function directionsLink(r) {
+    if (r.gps && r.gps.latitude && r.gps.longitude) {
+      return 'https://www.google.com/maps/dir/?api=1&destination=' +
+        encodeURIComponent(r.gps.latitude + ',' + r.gps.longitude);
+    }
+    if (r.address) {
+      return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(r.address);
+    }
+    return '';
+  }
+
+  function openClass(r) {
+    if (r.open === true) return 'open';
+    if (r.open === false) return 'closed';
+    return 'unknown';
+  }
+
+  function openText(r) {
+    if (r.open === true) return 'Open Now';
+    if (r.open === false) return 'Closed';
+    return 'Hours Unknown';
+  }
+
+  function normalizeDetail(type) {
+    if (!type) return 'Other';
+    return type.trim();
+  }
+
+  function toRadians(value) {
+    return value * (Math.PI / 180);
+  }
+
+  function haversineMiles(start, end) {
+    if (!start || !end) return null;
+
+    const startLat = Number(start.latitude);
+    const startLng = Number(start.longitude);
+    const endLat = Number(end.latitude);
+    const endLng = Number(end.longitude);
+
+    if ([startLat, startLng, endLat, endLng].some(Number.isNaN)) {
+      return null;
+    }
+
+    const earthRadiusMiles = 3958.8;
+    const dLat = toRadians(endLat - startLat);
+    const dLng = toRadians(endLng - startLng);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRadians(startLat)) * Math.cos(toRadians(endLat)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+    return earthRadiusMiles * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function formatDistanceText(miles) {
+    if (miles == null) return '';
+    if (miles < 0.2) {
+      return Math.round(miles * 5280) + ' ft away';
+    }
+    return miles.toFixed(miles < 10 ? 1 : 0) + ' mi away';
+  }
+
+  function preferredDistanceMiles(place) {
+    if (place.preciseDistanceMiles != null) return place.preciseDistanceMiles;
+    if (place.distanceMiles != null) return place.distanceMiles;
+    return null;
+  }
+
+  function effectiveDistanceText(place) {
+    if (place.preciseDistanceMiles != null) {
+      return formatDistanceText(place.preciseDistanceMiles);
+    }
+    return place.distanceText || '';
+  }
+
+  function normalizePlaces(data) {
+    return data.map(place => {
+      const preciseDistanceMiles =
+        originPoint && place.gps
+          ? haversineMiles(originPoint, place.gps)
+          : null;
+
+      return Object.assign({}, place, { preciseDistanceMiles: preciseDistanceMiles });
+    });
+  }
+
+  function populateDetailFilter(data) {
+    const select = document.getElementById('cuisineFilter');
+    const current = select.value;
+
+    const details = Array.from(new Set(
+      data.map(r => normalizeDetail(r.type)).filter(Boolean)
+    )).sort(function(a, b) {
+      return a.localeCompare(b);
+    });
+
+    select.innerHTML = '<option value="all">All</option>';
+    details.forEach(function(detail) {
+      const option = document.createElement('option');
+      option.value = detail;
+      option.textContent = detail;
+      select.appendChild(option);
+    });
+
+    if (Array.from(select.options).some(function(option) { return option.value === current; })) {
+      select.value = current;
+    }
+  }
+
+  function scorePlace(place) {
+    const rating = Number(place.rating || 0);
+    const reviews = Number(place.reviews || 0);
+    const openBoost = place.open === true ? 0.25 : 0;
+    const distanceMiles = preferredDistanceMiles(place);
+    const distanceBoost = distanceMiles != null ? Math.max(0, 2 - Math.min(distanceMiles, 10) / 5) : 0;
+    return rating + Math.min(reviews, 500) / 500 + openBoost + distanceBoost;
+  }
+
+  function compareByDistance(a, b) {
+    const aDistance = preferredDistanceMiles(a);
+    const bDistance = preferredDistanceMiles(b);
+
+    if (aDistance == null && bDistance == null) {
+      return 0;
+    }
+    if (aDistance == null) return 1;
+    if (bDistance == null) return -1;
+
+    return aDistance - bDistance;
+  }
+
+  function applyFilters() {
+    const openFilter = document.getElementById('openFilter').value;
+    const detailFilter = document.getElementById('cuisineFilter').value;
+    const sortBy = document.getElementById('sortBy').value;
+    const distanceFilter = document.getElementById('distanceFilter').value;
+
+    filteredPlaces = allPlaces.filter(function(place) {
+      const matchesOpen = openFilter === 'all' || place.open === true;
+      const matchesDetail = detailFilter === 'all' || normalizeDetail(place.type) === detailFilter;
+
+      let matchesDistance = true;
+      if (distanceFilter !== 'all') {
+        const maxMiles = Number(distanceFilter);
+        const distanceMiles = preferredDistanceMiles(place);
+        matchesDistance = distanceMiles != null && distanceMiles <= maxMiles;
+      }
+
+      return matchesOpen && matchesDetail && matchesDistance;
+    });
+
+    filteredPlaces.sort(function(a, b) {
+      if (sortBy === 'rating') {
+        return (Number(b.rating || 0) - Number(a.rating || 0)) ||
+          (Number(b.reviews || 0) - Number(a.reviews || 0)) ||
+          compareByDistance(a, b);
+      }
+
+      if (sortBy === 'reviews') {
+        return (Number(b.reviews || 0) - Number(a.reviews || 0)) ||
+          (Number(b.rating || 0) - Number(a.rating || 0)) ||
+          compareByDistance(a, b);
+      }
+
+      if (sortBy === 'distance') {
+        return compareByDistance(a, b) ||
+          (Number(b.rating || 0) - Number(a.rating || 0)) ||
+          (Number(b.reviews || 0) - Number(a.reviews || 0)) ||
+          (a.name || '').localeCompare(b.name || '');
+      }
+
+      if (sortBy === 'name') {
+        return (a.name || '').localeCompare(b.name || '');
+      }
+
+      return scorePlace(b) - scorePlace(a) ||
+        compareByDistance(a, b) ||
+        (a.name || '').localeCompare(b.name || '');
+    });
+
+    renderFiltered();
+  }
+
+  function renderFiltered() {
+    const results = document.getElementById('results');
+    results.innerHTML = '';
+    clearMarkers();
+
+    document.getElementById('countPill').textContent =
+      filteredPlaces.length + ' result' + (filteredPlaces.length === 1 ? '' : 's');
+    setSummary(filteredPlaces.length + ' place' + (filteredPlaces.length === 1 ? '' : 's') + ' shown');
+
+    if (filteredPlaces.length === 0) {
+      if (originPoint) {
+        const emptyBounds = [];
+        syncCurrentLocationMarker(emptyBounds);
+        map.setView([originPoint.latitude, originPoint.longitude], 13);
+      } else {
+        clearCurrentLocationMarker();
+      }
+      results.innerHTML = '<div class="empty-state">No results match the current filters.</div>';
+      return;
+    }
+
+    const bounds = [];
+    syncCurrentLocationMarker(bounds);
+
+    filteredPlaces.forEach(function(place) {
+      if (place.gps && place.gps.latitude && place.gps.longitude) {
+        const marker = L.marker([place.gps.latitude, place.gps.longitude])
+          .addTo(map)
+          .bindPopup('<strong>' + escapeHtml(place.name) + '</strong><br>' + escapeHtml(place.address || ''));
+
+        markers.push(marker);
+        bounds.push([place.gps.latitude, place.gps.longitude]);
+
+        marker.on('click', function() {
+          selectedPlaceName = place.name;
+          renderCardsOnly();
+        });
+      }
+    });
+
+    renderCardsOnly();
+
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [30, 30] });
+    }
+  }
+
+  function renderCardsOnly() {
+    const results = document.getElementById('results');
+    results.innerHTML = '';
+
+    filteredPlaces.forEach(function(place) {
+      const card = document.createElement('div');
+      card.className = 'card' + (selectedPlaceName === place.name ? ' active' : '');
+
+      card.onclick = function() {
+        selectedPlaceName = place.name;
+        renderCardsOnly();
+
+        if (place.gps && place.gps.latitude && place.gps.longitude) {
+          map.setView([place.gps.latitude, place.gps.longitude], 15);
+          markers.forEach(function(marker) {
+            const latLng = marker.getLatLng();
+            if (latLng.lat === place.gps.latitude && latLng.lng === place.gps.longitude) {
+              marker.openPopup();
+            }
+          });
+        }
+      };
+
+      const distanceText = effectiveDistanceText(place);
+      const distanceLine = distanceText
+        ? '<div class="stat">' + escapeHtml(distanceText) + '</div>'
+        : '';
+
+      const directionsUrl = directionsLink(place);
+
+      card.innerHTML = '' +
+        '<div class="card-shell">' +
+          '<div class="image" data-note="">' + imageHtml(place) + '</div>' +
+          '<div class="body">' +
+            '<div class="top-row">' +
+              '<div class="title">' + escapeHtml(place.name || 'Place') + '</div>' +
+              '<div class="badge ' + openClass(place) + '">' + openText(place) + '</div>' +
+            '</div>' +
+            '<div class="meta">' + escapeHtml(place.type || 'Category not listed') + '</div>' +
+            '<div class="stats">' +
+              '<div class="stat">⭐ ' + escapeHtml(place.rating || 'N/A') + '</div>' +
+              '<div class="stat">' + escapeHtml(place.reviews || 0) + ' reviews</div>' +
+              distanceLine +
+            '</div>' +
+            '<div class="meta">' + escapeHtml(place.address || '') + '</div>' +
+            '<div class="link-row">' +
+              (place.link ? '<a href="' + escapeHtml(place.link) + '" target="_blank" rel="noopener noreferrer">View Website / Details</a>' : '') +
+              (directionsUrl ? '<a href="' + escapeHtml(directionsUrl) + '" target="_blank" rel="noopener noreferrer">Get Directions</a>' : '') +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      results.appendChild(card);
+    });
+  }
+
+  function resetFilters() {
+    document.getElementById('openFilter').value = 'all';
+    document.getElementById('distanceFilter').value = 'all';
+    document.getElementById('cuisineFilter').value = 'all';
+    document.getElementById('sortBy').value = 'best';
+    applyFilters();
+  }
+
+  function render(data) {
+    if (!Array.isArray(data)) {
+      setStatus('Something went wrong loading results.');
+      setSummary('0 places');
+      return;
+    }
+
+    allPlaces = normalizePlaces(data);
+    selectedPlaceName = null;
+    populateDetailFilter(allPlaces);
+    applyFilters();
+  }
+
+  async function fetchPlaces(url, statusMessage) {
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data && data.error ? data.error : 'Search failed');
+    }
+
+    render(data);
+    setStatus(statusMessage);
+  }
+
+  async function search() {
+    const category = document.getElementById('category').value;
+    const mode = document.getElementById('mode').value;
+    const input = document.getElementById('input').value.trim();
+
+    try {
+      setStatus('Searching...');
+      setSummary('Loading...');
+
+      if (mode === 'gps') {
+        if (!navigator.geolocation) {
+          setStatus('Your browser does not support location services.');
+          setSummary('0 places');
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          async function(position) {
+            try {
+              const latitude = position.coords.latitude;
+              const longitude = position.coords.longitude;
+              originPoint = { latitude: latitude, longitude: longitude };
+
+              await fetchPlaces(
+                '/api/places?lat=' + encodeURIComponent(latitude) +
+                '&lng=' + encodeURIComponent(longitude) +
+                '&category=' + encodeURIComponent(category),
+                'Showing ' + category + ' near your current location.'
+              );
+            } catch (error) {
+              console.error(error);
+              setStatus('Could not use your current location.');
+              setSummary('0 places');
+            }
+          },
+          function(error) {
+            originPoint = null;
+
+            if (error.code === 1) {
+              setStatus('Location permission was denied. Please allow location access in your browser.');
+            } else if (error.code === 2) {
+              setStatus('Your location could not be determined.');
+            } else if (error.code === 3) {
+              setStatus('Location request timed out. Please try again.');
+            } else {
+              setStatus('Could not access your location.');
+            }
+
+            setSummary('0 places');
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000
+          }
+        );
+
+        return;
+      }
+
+      originPoint = null;
+      clearCurrentLocationMarker();
+
+      if (!input) {
+        setStatus(mode === 'zip' ? 'Enter a ZIP code to search.' : 'Enter a city and state to search.');
+        setSummary('0 places');
+        return;
+      }
+
+      if (mode === 'zip') {
+        await fetchPlaces(
+          '/api/places?zip=' + encodeURIComponent(input) + '&category=' + encodeURIComponent(category),
+          'Showing ' + category + ' for ' + input + '.'
+        );
+        return;
+      }
+
+      await fetchPlaces(
+        '/api/places?location=' + encodeURIComponent(input) + '&category=' + encodeURIComponent(category),
+        'Showing ' + category + ' for ' + input + '.'
+      );
+    } catch (error) {
+      console.error(error);
+      setStatus('Search failed. Please try again.');
+      setSummary('0 places');
+    }
+  }
+
+  document.getElementById('input').addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') search();
+  });
+
+  updatePlaceholder();
+</script>
+
+</body>
+</html>
