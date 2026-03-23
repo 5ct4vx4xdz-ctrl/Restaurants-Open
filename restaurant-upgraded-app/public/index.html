@@ -3,7 +3,7 @@
 <head>
   <title>Food and Drink Finder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <style>
     * { box-sizing: border-box; }
 
@@ -208,8 +208,15 @@
       border-color: #f9a8d4;
     }
 
+    .card-shell {
+      display: grid;
+      grid-template-columns: 112px minmax(0, 1fr);
+      align-items: stretch;
+      min-height: 100%;
+    }
+
     .image {
-      height: 128px;
+      min-height: 112px;
       background:
         radial-gradient(circle at top left, rgba(249,115,22,.18), transparent 30%),
         radial-gradient(circle at bottom right, rgba(59,130,246,.18), transparent 30%),
@@ -218,24 +225,59 @@
       align-items: center;
       justify-content: center;
       color: var(--muted);
-      font-size: 14px;
+      font-size: 12px;
       text-align: center;
       overflow: hidden;
+      position: relative;
+      padding: 10px;
+    }
+
+    .image::after {
+      content: attr(data-note);
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      padding: 4px 6px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.88);
+      color: #475569;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity .16s ease, transform .16s ease;
+      pointer-events: none;
+    }
+
+    .image.low-res::after {
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .image img {
       width: 100%;
       height: 100%;
+      border-radius: 12px;
       object-fit: cover;
       object-position: center;
       display: block;
       transform: translateZ(0);
       backface-visibility: hidden;
       image-rendering: auto;
+      transition: transform .16s ease, filter .16s ease, opacity .16s ease;
+    }
+
+    .image.low-res img {
+      transform: scale(1.03);
+      filter: saturate(0.82) contrast(0.94);
+      opacity: 0.86;
     }
 
     .body {
       padding: 14px;
+      min-width: 0;
     }
 
     .top-row {
@@ -247,7 +289,7 @@
     }
 
     .title {
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 700;
       line-height: 1.2;
       margin: 0;
@@ -329,498 +371,4 @@
       }
     }
 
-    @media (max-width: 1150px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-
-      #results {
-        max-height: none;
-      }
-
-      #map {
-        height: 430px;
-        min-height: 430px;
-      }
-    }
-
-    @media (max-width: 640px) {
-      header h1 {
-        font-size: 28px;
-      }
-
-      .controls-grid {
-        grid-template-columns: 1fr;
-      }
-
-      #map {
-        height: 320px;
-        min-height: 320px;
-      }
-
-      .image {
-        height: 120px;
-      }
-    }
-  </style>
-</head>
-<body>
-
-<header>
-  <h1>Food and Drink Finder</h1>
-  <p>Search restaurants, wineries, and breweries by ZIP, City/State, or Current Location.</p>
-</header>
-
-<div class="toolbar-wrap">
-  <div class="toolbar">
-    <div class="controls-grid">
-      <div class="field">
-        <label for="category">Type</label>
-        <select id="category">
-          <option value="restaurants">Restaurants</option>
-          <option value="wineries">Wineries</option>
-          <option value="breweries">Breweries</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="mode">Search By</label>
-        <select id="mode" onchange="updatePlaceholder()">
-          <option value="zip">ZIP Code</option>
-          <option value="city">City, State</option>
-          <option value="gps">Current Location</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="input">Location</label>
-        <input id="input" placeholder="Enter ZIP code" />
-      </div>
-
-      <div class="field">
-        <label for="openFilter">Open Status</label>
-        <select id="openFilter" onchange="applyFilters()">
-          <option value="all">All Places</option>
-          <option value="open">Open Now Only</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="distanceFilter">Distance</label>
-        <select id="distanceFilter" onchange="applyFilters()">
-          <option value="all">Any Distance</option>
-          <option value="1">Within 1 mile</option>
-          <option value="3">Within 3 miles</option>
-          <option value="5">Within 5 miles</option>
-          <option value="10">Within 10 miles</option>
-          <option value="15">Within 15 miles</option>
-          <option value="25">Within 25 miles</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="cuisineFilter">Category Detail</label>
-        <select id="cuisineFilter" onchange="applyFilters()">
-          <option value="all">All</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="sortBy">Sort By</label>
-        <select id="sortBy" onchange="applyFilters()">
-          <option value="best">Best Overall</option>
-          <option value="rating">Highest Rating</option>
-          <option value="reviews">Most Reviews</option>
-          <option value="distance">Closest</option>
-          <option value="name">Name A–Z</option>
-        </select>
-      </div>
-
-      <button class="search-btn" onclick="search()">Search</button>
-      <button class="reset-btn" onclick="resetFilters()">Reset</button>
-    </div>
-  </div>
-</div>
-
-<div id="statusBar">
-  <div class="status">
-    <div id="status">Search by ZIP code, City/State, or Current Location.</div>
-    <div id="summary">0 places</div>
-  </div>
-</div>
-
-<div class="layout">
-  <div class="panel">
-    <div class="panel-head">
-      <h2>Results</h2>
-      <div class="count-pill" id="countPill">0 results</div>
-    </div>
-    <div id="results">
-      <div class="empty-state">Run a search to see results, filters, and map pins.</div>
-    </div>
-  </div>
-
-  <div class="panel">
-    <div id="map"></div>
-  </div>
-</div>
-
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script>
-  let map = L.map('map').setView([37.8, -96], 4);
-  let markers = [];
-  let allPlaces = [];
-  let filteredPlaces = [];
-  let selectedPlaceName = null;
-  let lastSearch = {};
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
-  }).addTo(map);
-
-  function updatePlaceholder() {
-    const mode = document.getElementById('mode').value;
-    const input = document.getElementById('input');
-
-    if (mode === 'zip') {
-      input.placeholder = 'Enter ZIP code';
-      input.disabled = false;
-      input.value = '';
-    } else if (mode === 'city') {
-      input.placeholder = 'City, State (ex: Atlanta, GA)';
-      input.disabled = false;
-      input.value = '';
-    } else {
-      input.placeholder = 'Using your current location...';
-      input.disabled = true;
-      input.value = '';
-    }
-  }
-
-  function clearMarkers() {
-    markers.forEach(marker => map.removeLayer(marker));
-    markers = [];
-  }
-
-  function setStatus(message) {
-    document.getElementById('status').textContent = message;
-  }
-
-  function setSummary(message) {
-    document.getElementById('summary').textContent = message;
-  }
-
-  function escapeHtml(str) {
-    return String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
-  function imageHtml(r) {
-    if (r.thumbnail && r.thumbnail.includes('http')) {
-      return `<img
-        src="${r.thumbnail}"
-        alt="${escapeHtml(r.name || 'Place')}"
-        loading="lazy"
-        referrerpolicy="no-referrer"
-        decoding="async"
-        onerror="this.parentNode.innerHTML='No Image Available'"
-      >`;
-    }
-    return 'No Image Available';
-  }
-
-  function directionsLink(r) {
-    if (r.gps && r.gps.latitude && r.gps.longitude) {
-      return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(r.gps.latitude + ',' + r.gps.longitude)}`;
-    }
-    if (r.address) {
-      return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(r.address)}`;
-    }
-    return '';
-  }
-
-  function openClass(r) {
-    if (r.open === true) return 'open';
-    if (r.open === false) return 'closed';
-    return 'unknown';
-  }
-
-  function openText(r) {
-    if (r.open === true) return 'Open Now';
-    if (r.open === false) return 'Closed';
-    return 'Hours Unknown';
-  }
-
-  function normalizeDetail(type) {
-    if (!type) return 'Other';
-    return type.trim();
-  }
-
-  function populateDetailFilter(data) {
-    const select = document.getElementById('cuisineFilter');
-    const current = select.value;
-
-    const details = [...new Set(
-      data.map(r => normalizeDetail(r.type)).filter(Boolean)
-    )].sort((a, b) => a.localeCompare(b));
-
-    select.innerHTML = '<option value="all">All</option>';
-    details.forEach(detail => {
-      const option = document.createElement('option');
-      option.value = detail;
-      option.textContent = detail;
-      select.appendChild(option);
-    });
-
-    if ([...select.options].some(o => o.value === current)) {
-      select.value = current;
-    }
-  }
-
-  function scorePlace(r) {
-    const rating = Number(r.rating || 0);
-    const reviews = Number(r.reviews || 0);
-    const openBoost = r.open === true ? 0.25 : 0;
-    const distanceBoost = r.distanceMiles != null ? Math.max(0, 2 - Math.min(r.distanceMiles, 10) / 5) : 0;
-    return rating + Math.min(reviews, 500) / 500 + openBoost + distanceBoost;
-  }
-
-  function applyFilters() {
-    const openFilter = document.getElementById('openFilter').value;
-    const detailFilter = document.getElementById('cuisineFilter').value;
-    const sortBy = document.getElementById('sortBy').value;
-    const distanceFilter = document.getElementById('distanceFilter').value;
-
-    filteredPlaces = allPlaces.filter(r => {
-      const matchesOpen = openFilter === 'all' || r.open === true;
-      const matchesDetail = detailFilter === 'all' || normalizeDetail(r.type) === detailFilter;
-
-      let matchesDistance = true;
-      if (distanceFilter !== 'all') {
-        const maxMiles = Number(distanceFilter);
-        matchesDistance = r.distanceMiles != null && r.distanceMiles <= maxMiles;
-      }
-
-      return matchesOpen && matchesDetail && matchesDistance;
-    });
-
-    filteredPlaces.sort((a, b) => {
-      if (sortBy === 'rating') {
-        return (Number(b.rating || 0) - Number(a.rating || 0)) || (Number(b.reviews || 0) - Number(a.reviews || 0));
-      }
-      if (sortBy === 'reviews') {
-        return (Number(b.reviews || 0) - Number(a.reviews || 0)) || (Number(b.rating || 0) - Number(a.rating || 0));
-      }
-      if (sortBy === 'distance') {
-        return (a.distanceMiles ?? Number.MAX_SAFE_INTEGER) - (b.distanceMiles ?? Number.MAX_SAFE_INTEGER);
-      }
-      if (sortBy === 'name') {
-        return (a.name || '').localeCompare(b.name || '');
-      }
-      return scorePlace(b) - scorePlace(a);
-    });
-
-    renderFiltered();
-  }
-
-  function renderFiltered() {
-    const results = document.getElementById('results');
-    results.innerHTML = '';
-    clearMarkers();
-
-    document.getElementById('countPill').textContent = `${filteredPlaces.length} result${filteredPlaces.length === 1 ? '' : 's'}`;
-    setSummary(`${filteredPlaces.length} place${filteredPlaces.length === 1 ? '' : 's'} shown`);
-
-    if (filteredPlaces.length === 0) {
-      results.innerHTML = '<div class="empty-state">No results match the current filters.</div>';
-      return;
-    }
-
-    const bounds = [];
-
-    filteredPlaces.forEach(r => {
-      if (r.gps && r.gps.latitude && r.gps.longitude) {
-        const marker = L.marker([r.gps.latitude, r.gps.longitude])
-          .addTo(map)
-          .bindPopup(`<strong>${escapeHtml(r.name)}</strong><br>${escapeHtml(r.address || '')}`);
-        markers.push(marker);
-        bounds.push([r.gps.latitude, r.gps.longitude]);
-
-        marker.on('click', () => {
-          selectedPlaceName = r.name;
-          renderCardsOnly();
-        });
-      }
-    });
-
-    renderCardsOnly();
-
-    if (bounds.length > 0) {
-      map.fitBounds(bounds, { padding: [30, 30] });
-    }
-  }
-
-  function renderCardsOnly() {
-    const results = document.getElementById('results');
-    results.innerHTML = '';
-
-    filteredPlaces.forEach(r => {
-      const card = document.createElement('div');
-      card.className = 'card' + (selectedPlaceName === r.name ? ' active' : '');
-
-      card.onclick = () => {
-        selectedPlaceName = r.name;
-        renderCardsOnly();
-
-        if (r.gps && r.gps.latitude && r.gps.longitude) {
-          map.setView([r.gps.latitude, r.gps.longitude], 15);
-          markers.forEach(marker => {
-            const ll = marker.getLatLng();
-            if (ll.lat === r.gps.latitude && ll.lng === r.gps.longitude) {
-              marker.openPopup();
-            }
-          });
-        }
-      };
-
-      const distanceLine = r.distanceText
-        ? `<div class="stat">${escapeHtml(r.distanceText)}</div>`
-        : '';
-
-      const directionsUrl = directionsLink(r);
-
-      card.innerHTML = `
-        <div class="image">${imageHtml(r)}</div>
-        <div class="body">
-          <div class="top-row">
-            <div class="title">${escapeHtml(r.name || 'Place')}</div>
-            <div class="badge ${openClass(r)}">${openText(r)}</div>
-          </div>
-
-          <div class="meta">${escapeHtml(r.type || 'Category not listed')}</div>
-
-          <div class="stats">
-            <div class="stat">⭐ ${r.rating || 'N/A'}</div>
-            <div class="stat">${r.reviews || 0} reviews</div>
-            ${distanceLine}
-          </div>
-
-          <div class="meta">${escapeHtml(r.address || '')}</div>
-
-          <div class="link-row">
-            ${r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer">View Website / Details</a>` : ''}
-            ${directionsUrl ? `<a href="${directionsUrl}" target="_blank" rel="noopener noreferrer">Get Directions</a>` : ''}
-          </div>
-        </div>
-      `;
-
-      results.appendChild(card);
-    });
-  }
-
-  function resetFilters() {
-    document.getElementById('openFilter').value = 'all';
-    document.getElementById('distanceFilter').value = 'all';
-    document.getElementById('cuisineFilter').value = 'all';
-    document.getElementById('sortBy').value = 'best';
-    applyFilters();
-  }
-
-  function render(data) {
-    if (!Array.isArray(data)) {
-      setStatus('Something went wrong loading results.');
-      return;
-    }
-
-    allPlaces = data;
-    selectedPlaceName = null;
-    populateDetailFilter(allPlaces);
-    applyFilters();
-  }
-
-  async function search() {
-    const category = document.getElementById('category').value;
-    const mode = document.getElementById('mode').value;
-    const input = document.getElementById('input').value.trim();
-
-    try {
-      setStatus('Searching...');
-      setSummary('Loading...');
-
-      if (mode === 'gps') {
-        if (!navigator.geolocation) {
-          setStatus('Your browser does not support location services.');
-          return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-          async pos => {
-            try {
-              const lat = pos.coords.latitude;
-              const lng = pos.coords.longitude;
-              lastSearch = { category, lat, lng };
-
-              const res = await fetch(`/api/places?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}&category=${encodeURIComponent(category)}`);
-              const data = await res.json();
-              render(data);
-              setStatus(`Showing ${category} near your current location.`);
-            } catch (err) {
-              console.error(err);
-              setStatus('Could not use your current location.');
-            }
-          },
-          err => {
-            if (err.code === 1) {
-              setStatus('Location permission was denied. Please allow location access in your browser.');
-            } else if (err.code === 2) {
-              setStatus('Your location could not be determined.');
-            } else if (err.code === 3) {
-              setStatus('Location request timed out. Please try again.');
-            } else {
-              setStatus('Could not access your location.');
-            }
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 60000
-          }
-        );
-
-        return;
-      }
-
-      let url = '';
-
-      if (mode === 'zip') {
-        lastSearch = { category, zip: input };
-        url = `/api/places?zip=${encodeURIComponent(input)}&category=${encodeURIComponent(category)}`;
-      } else if (mode === 'city') {
-        lastSearch = { category, location: input };
-        url = `/api/places?location=${encodeURIComponent(input)}&category=${encodeURIComponent(category)}`;
-      }
-
-      const res = await fetch(url);
-      const data = await res.json();
-      render(data);
-      setStatus(`Showing ${category} for ${input}.`);
-    } catch (err) {
-      console.error(err);
-      setStatus('Search failed. Please try again.');
-      setSummary('0 places');
-    }
-  }
-
-  document.getElementById('input').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') search();
-  });
-
-  updatePlaceholder();
-</script>
-
-</body>
-</html>
+    @media (max-width:
