@@ -49,26 +49,33 @@ function pickImageUrl(place) {
   return candidates.find(c => typeof c === 'string' && c.startsWith('http')) || '';
 }
 
-function parseOpenStatus(oh) {
-  if (!oh) return { openNow: undefined, hoursSchedule: null, hoursText: null };
+function parseOpenStatus(place) {
+  let openNow = undefined;
+  let hoursSchedule = null;
+  let hoursText = null;
 
-  if (typeof oh === 'object') {
-    const openNow = typeof oh.open_now === 'boolean' ? oh.open_now : undefined;
-    const hoursSchedule = Array.isArray(oh.hours) ? oh.hours : null;
-    return { openNow, hoursSchedule, hoursText: null };
+  // Top-level hours string: "Open ⋅ Closes 10 PM" or "Closed ⋅ Opens 9 AM"
+  const topHours = place.hours || place.operating_hours;
+  if (typeof topHours === 'string') {
+    hoursText = topHours;
+    const lower = topHours.toLowerCase();
+    if (lower.startsWith('open')) openNow = true;
+    else if (lower.startsWith('closed')) openNow = false;
   }
 
-  if (typeof oh === 'string') {
-    const lower = oh.toLowerCase();
-    const openNow = lower.startsWith('open') ? true : lower.startsWith('closed') ? false : undefined;
-    return { openNow, hoursSchedule: null, hoursText: oh };
+  // Structured opening_hours object (less common in search results)
+  const oh = place.opening_hours;
+  if (oh && typeof oh === 'object') {
+    if (typeof oh.open_now === 'boolean') openNow = oh.open_now;
+    if (Array.isArray(oh.hours)) hoursSchedule = oh.hours;
+    if (!hoursText && typeof oh === 'string') hoursText = oh;
   }
 
-  return { openNow: undefined, hoursSchedule: null, hoursText: null };
+  return { openNow, hoursSchedule, hoursText };
 }
 
 function formatPlace(place) {
-  const { openNow, hoursSchedule, hoursText } = parseOpenStatus(place.opening_hours);
+  const { openNow, hoursSchedule, hoursText } = parseOpenStatus(place);
   return {
     name: place.title,
     rating: place.rating,
