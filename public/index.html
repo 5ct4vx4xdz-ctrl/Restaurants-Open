@@ -356,6 +356,15 @@
       border: 1px solid #dbeafe;
     }
 
+    .hours-line {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 7px;
+    }
+
     #map {
       height: calc(100vh - 285px);
       min-height: 560px;
@@ -582,6 +591,18 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+  function todaysHours(place) {
+    if (Array.isArray(place.hours) && place.hours.length) {
+      const today = DAYS[new Date().getDay()];
+      const entry = place.hours.find(h => h.day && h.day.startsWith(today.slice(0, 3)));
+      if (entry) return entry.time || entry.hours || null;
+    }
+    if (place.hoursText) return place.hoursText;
+    return null;
   }
 
   function handleImageLoad(img) {
@@ -866,6 +887,7 @@
               distanceLine +
             '</div>' +
             '<div class="meta">' + escapeHtml(place.address || '') + '</div>' +
+            (todaysHours(place) ? '<div class="hours-line">🕐 ' + escapeHtml(todaysHours(place)) + '</div>' : '') +
             '<div class="link-row">' +
               (place.link ? '<a href="' + escapeHtml(place.link) + '" target="_blank" rel="noopener noreferrer">View Website</a>' : '') +
               (directionsUrl ? '<a href="' + escapeHtml(directionsUrl) + '" target="_blank" rel="noopener noreferrer">Get Directions</a>' : '') +

@@ -49,13 +49,34 @@ function pickImageUrl(place) {
   return candidates.find(c => typeof c === 'string' && c.startsWith('http')) || '';
 }
 
+function parseOpenStatus(oh) {
+  if (!oh) return { openNow: undefined, hoursSchedule: null, hoursText: null };
+
+  if (typeof oh === 'object') {
+    const openNow = typeof oh.open_now === 'boolean' ? oh.open_now : undefined;
+    const hoursSchedule = Array.isArray(oh.hours) ? oh.hours : null;
+    return { openNow, hoursSchedule, hoursText: null };
+  }
+
+  if (typeof oh === 'string') {
+    const lower = oh.toLowerCase();
+    const openNow = lower.startsWith('open') ? true : lower.startsWith('closed') ? false : undefined;
+    return { openNow, hoursSchedule: null, hoursText: oh };
+  }
+
+  return { openNow: undefined, hoursSchedule: null, hoursText: null };
+}
+
 function formatPlace(place) {
+  const { openNow, hoursSchedule, hoursText } = parseOpenStatus(place.opening_hours);
   return {
     name: place.title,
     rating: place.rating,
     reviews: place.reviews,
     address: place.address,
-    open: place.opening_hours ? place.opening_hours.open_now : undefined,
+    open: openNow,
+    hours: hoursSchedule,
+    hoursText,
     type: place.type,
     link: place.website || place.link,
     image: pickImageUrl(place),
