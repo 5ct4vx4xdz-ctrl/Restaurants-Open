@@ -937,6 +937,10 @@
     const mode = document.getElementById('mode').value;
     const input = document.getElementById('input').value.trim();
 
+    localStorage.setItem('lastMode', mode);
+    localStorage.setItem('lastCategory', category);
+    if (mode !== 'gps') localStorage.setItem('lastInput', input);
+
     try {
       setStatus('Searching...');
       setSummary('Loading...');
@@ -1018,7 +1022,19 @@
     if (event.key === 'Enter') search();
   });
 
-  updatePlaceholder();
+  // Restore last search from localStorage
+  (function restoreLastSearch() {
+    const lastMode = localStorage.getItem('lastMode');
+    const lastInput = localStorage.getItem('lastInput');
+    const lastCategory = localStorage.getItem('lastCategory');
+
+    if (lastMode) document.getElementById('mode').value = lastMode;
+    if (lastCategory) document.getElementById('category').value = lastCategory;
+    updatePlaceholder();
+    if (lastInput && lastMode !== 'gps') {
+      document.getElementById('input').value = lastInput;
+    }
+  })();
 </script>
 
 </body>
